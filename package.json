@@ -1,0 +1,12 @@
+{
+  "name": "todo-flow",
+  "private": true,
+  "description": "Todo Flow PWA with optional Node server for static files + secure Claude API proxy",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  }
+}

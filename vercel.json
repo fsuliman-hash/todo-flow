@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/chat.js": { "maxDuration": 30 },
+    "api/chat-action.js": { "maxDuration": 30 },
+    "api/chat-edit.js": { "maxDuration": 30 },
+    "api/chat-categorize.js": { "maxDuration": 30 },
+    "api/chat-shift.js": { "maxDuration": 30 },
+    "api/chat-shift-intent.js": { "maxDuration": 30 }
+  }
+}
