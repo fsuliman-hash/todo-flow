@@ -367,4 +367,15 @@
       });
     }
   };
+
+  // app.js may run before this file is loaded, so production wiring can be missed.
+  // Auto-wire on next tick and after DOM ready; function is idempotent.
+  setTimeout(function () {
+    if (typeof window.wireTodoFlowProduction === 'function') window.wireTodoFlowProduction();
+  }, 0);
+  if (typeof document !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', function () {
+      if (typeof window.wireTodoFlowProduction === 'function') window.wireTodoFlowProduction();
+    });
+  }
 })();
