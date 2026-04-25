@@ -1,12 +1,5 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "api/**/*.js", "use": "@vercel/node" },
-    { "src": "*.html", "use": "@vercel/static" },
-    { "src": "*.js", "use": "@vercel/static" },
-    { "src": "*.css", "use": "@vercel/static" },
-    { "src": "assets/**", "use": "@vercel/static" }
-  ],
   "functions": {
     "api/chat.js": { "maxDuration": 30 },
     "api/chat-action.js": { "maxDuration": 30 },
@@ -15,9 +8,7 @@
     "api/chat-shift.js": { "maxDuration": 30 },
     "api/chat-shift-intent.js": { "maxDuration": 30 }
   },
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },
-    { "handle": "filesystem" },
-    { "src": "/.*", "dest": "/index.html" }
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
