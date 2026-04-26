@@ -1698,8 +1698,76 @@ function rMatrix(){
 function getVisibleTasks(){
   return getFiltered().filter(r=>!r.startDate||new Date(r.startDate)<=new Date());
 }
+function normalizeDupTitle(title){
+  return String(title||'')
+    .toLowerCase()
+    .replace(/\(copy\)/g,'')
+    .replace(/[^a-z0-9\s]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+function duplicateDueKey(r){
+  if(!r||r.unscheduled||isUnscheduledISO(r.dueDate))return 'undated';
+  const d=new Date(r.dueDate);
+  if(Number.isNaN(d.getTime()))return 'undated';
+  return fmtLD(d);
+}
+function getDuplicateTaskIdSet(){
+  const groups=new Map();
+  getTaskVisibleList(R).forEach(r=>{
+    if(!r||r.completed)return;
+    const title=normalizeDupTitle(r.title);
+    if(!title)return;
+    const key=title+'|'+duplicateDueKey(r);
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push(r.id);
+  });
+  const dup=new Set();
+  groups.forEach(ids=>{if(ids.length>1)ids.forEach(id=>dup.add(id));});
+  return dup;
+}
+function buildDuplicateDeletePlanFromTasks(){
+  const groups=new Map();
+  getTaskVisibleList(R).forEach(r=>{
+    if(!r||r.completed)return;
+    const title=normalizeDupTitle(r.title);
+    if(!title)return;
+    const key=title+'|'+duplicateDueKey(r);
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push(r);
+  });
+  const removeIds=[],keepIds=[];
+  groups.forEach(items=>{
+    if(!items||items.length<2)return;
+    const sorted=items.slice().sort((a,b)=>{
+      const ta=new Date(a.createdAt||a.updated_at||0).getTime()||0;
+      const tb=new Date(b.createdAt||b.updated_at||0).getTime()||0;
+      return ta-tb;
+    });
+    keepIds.push(sorted[0].id);
+    sorted.slice(1).forEach(x=>removeIds.push(x.id));
+  });
+  return {removeIds,keepIds};
+}
+function deleteAllDuplicatesFromFilter(){
+  const plan=buildDuplicateDeletePlanFromTasks();
+  if(!plan.removeIds.length){showToast('No duplicates to delete');return;}
+  const n=plan.removeIds.length;
+  if(!confirm(`Delete ${n} duplicate task${n===1?'':'s'} and keep oldest in each group?`))return;
+  const backup=R.slice();
+  const rm=new Set(plan.removeIds.map(String));
+  const removed=[];
+  R.forEach(r=>{if(r&&rm.has(String(r.id)))removed.push(r);});
+  removed.forEach(r=>trash.push({...r,deletedAt:new Date().toISOString()}));
+  R=R.filter(r=>!(r&&rm.has(String(r.id))));
+  removed.forEach(r=>{if(r&&r.id)clearReminderKeys(r.id);});
+  reindexOrders(false);
+  _undoCallback=()=>{R=backup;sv();render();};
+  sv();render();showToast(`Deleted ${removed.length} duplicate task${removed.length===1?'':'s'}`,'Undo');
+}
 function getFiltered(){
-  let l=getTaskVisibleList(R).filter(r=>{if(filter==='all')return !r.completed;if(filter==='done')return r.completed;if(filter==='overdue')return !r.completed&&urg(r.dueDate)==='overdue';if(filter==='duesoon')return !r.completed&&['urgent','soon'].includes(urg(r.dueDate));return r.category===filter&&!r.completed});
+  const dupIds=filter==='duplicates'?getDuplicateTaskIdSet():null;
+  let l=getTaskVisibleList(R).filter(r=>{if(filter==='all')return !r.completed;if(filter==='done')return r.completed;if(filter==='duplicates')return !r.completed&&dupIds&&dupIds.has(r.id);if(filter==='overdue')return !r.completed&&urg(r.dueDate)==='overdue';if(filter==='duesoon')return !r.completed&&['urgent','soon'].includes(urg(r.dueDate));return r.category===filter&&!r.completed});
   l=l.filter(r=>!r.startDate||r.completed||new Date(r.startDate)<=new Date());
   if(search){const q=search.toLowerCase();l=l.filter(r=>r.title.toLowerCase().includes(q)||(r.notes||'').toLowerCase().includes(q)||(r.tags||[]).some(t=>t.toLowerCase().includes(q))||(r.subject||'').toLowerCase().includes(q));}
   const po={critical:0,high:1,medium:2,low:3};
@@ -1724,7 +1792,8 @@ function rTasks(){
   if(X.clipboardSuggestion)h+=`<div class="suggest-bar"><span>📋</span><span class="st">Clipboard looks like a date/reminder: ${esc(X.clipboardSuggestion)}</span><button onclick="useClipboardSuggestion()">Use</button><button class="dism" onclick="dismissClipboardSuggestion()">✕</button></div>`;
   if(ttActive)h+=rTTActive();
   const recentDone=R.filter(r=>r&&r.completed&&r.completedAt).sort((a,b)=>new Date(b.completedAt)-new Date(a.completedAt)).slice(0,4);
-  h+=`<div class="task-filter-head"><div class="task-filter-label">Task views</div><div class="task-filter-actions"><button class="chip-btn${filter==='all'?' on':''}" onclick="filter='all';render()">Active</button><button class="chip-btn${filter==='done'?' on':''}" onclick="filter='done';render()">Done</button><button class="chip-btn" onclick="openBulkImport()">Bulk import</button><button class="chip-btn" onclick="go('settings');setTimeout(()=>document.getElementById('catManage')?.scrollIntoView({behavior:'smooth',block:'start'}),120)">Manage categories</button></div></div>`;
+  const dupCount=getDuplicateTaskIdSet().size;
+  h+=`<div class="task-filter-head"><div class="task-filter-label">Task views</div><div class="task-filter-actions"><button class="chip-btn${filter==='all'?' on':''}" onclick="filter='all';render()">Active</button><button class="chip-btn${filter==='done'?' on':''}" onclick="filter='done';render()">Done</button><button class="chip-btn${filter==='duplicates'?' on':''}" onclick="filter='duplicates';render()">Duplicates${dupCount?` (${dupCount})`:''}</button>${filter==='duplicates'&&dupCount?`<button class="chip-btn" onclick="deleteAllDuplicatesFromFilter()">Delete all duplicates</button>`:''}<button class="chip-btn" onclick="openBulkImport()">Bulk import</button><button class="chip-btn" onclick="go('settings');setTimeout(()=>document.getElementById('catManage')?.scrollIntoView({behavior:'smooth',block:'start'}),120)">Manage categories</button></div></div>`;
   if(filter!=='done'){
     h+=`<div class="panel" style="margin:8px 14px 0"><h3>Recently completed</h3>${recentDone.length?recentDone.map(r=>`<div class="list-row"><div class="list-main"><b>${esc(r.title)}</b><span>${r.completedAt?new Date(r.completedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):''}</span></div><button class="cact" onclick="reopenTask('${r.id}')" title="Bring back to active">↩</button></div>`).join(''):'<div class="sdesc">No recently completed tasks yet.</div>'}</div>`;
   }
@@ -2446,8 +2515,16 @@ function rWhatNow(){
   } else h+=`<div class="empty"><div class="empty-i">🎉</div><div class="empty-t">All done! Nothing to do right now.</div></div>`;
   return h
 }
-function checkBriefing(){const td=fmtLD(new Date());if(S.briefingShown[td])return;const overdue=R.filter(r=>!r.completed&&urg(r.dueDate)==='overdue');const missed=R.filter(r=>!r.completed&&fmtLD(new Date(r.dueDate))===fmtLD(new Date(Date.now()-86400000)));const top3=getTodayTop3();if(!overdue.length&&!missed.length&&!top3.length&&new Date().getDay()!==0)return;S.briefingShown[td]=true;sv(false);const ov=document.createElement('div');ov.className='brief-ov';ov.id='briefOv';const sunday=new Date().getDay()===0;ov.innerHTML=`<div style="font-size:44px">☀️</div><h2>Morning catch-up</h2><div class="brief-sub">${overdue.length} overdue · ${missed.length} from yesterday · ${top3.length}/3 top picks</div><div style="text-align:left;width:100%;max-width:340px;margin-bottom:18px">${overdue.slice(0,3).map(r=>`<div class="brief-item">🔴 ${esc(r.title)}</div>`).join('')}${missed.slice(0,2).map(r=>`<div class="brief-item">📦 Yesterday: ${esc(r.title)}</div>`).join('')}${top3.map(r=>`<div class="brief-item">⭐ ${esc(r.title)}</div>`).join('')||'<div class="brief-item">Pick your top 3 from My Day</div>'}</div><div class="safe-row" style="justify-content:center"><button onclick="document.getElementById('briefOv').remove();go('myday')">Start day</button>${sunday?`<button onclick="document.getElementById('briefOv').remove();openWeeklyReset()">Sunday reset</button>`:''}</div>`;document.body.appendChild(ov);if(sunday)setTimeout(openWeeklyReset,400)}
-function openWeeklyReset(){const key=fmtLD(new Date());if(X.weeklyResetShown[key])return;X.weeklyResetShown[key]=true;sv(false);const overdue=R.filter(r=>!r.completed&&urg(r.dueDate)==='overdue').length;const snoozed=R.filter(r=>!r.completed&&(r.snoozeCount||0)>=2).slice(0,5);const ov=document.createElement('div');ov.className='mo';ov.onclick=e=>{if(e.target===ov)ov.remove()};ov.innerHTML=`<div class="mo-in" onclick="event.stopPropagation()"><div class="mo-h"></div><h3>Sunday weekly reset</h3><div class="mini-item">Overdue tasks: ${overdue}</div><div class="mini-item">Tasks you keep snoozing: ${snoozed.length}</div>${snoozed.map(r=>`<div class="mini-item">😴 ${esc(r.title)}</div>`).join('')}<div class="safe-row"><button class="xbtn" onclick="go('weekly');this.closest('.mo').remove()">Open weekly planner</button><button class="xbtn" onclick="go('myday');this.closest('.mo').remove()">Pick top 3</button></div></div>`;document.body.appendChild(ov)}
+function openTop3FromPrompts(){
+  document.getElementById('briefOv')?.remove();
+  document.getElementById('top3M')?.remove();
+  const weekly=[...document.querySelectorAll('.mo')].find(m=>/Sunday weekly reset/i.test(m.textContent||''));
+  if(weekly)weekly.remove();
+  go('myday');
+  setTimeout(()=>{if(typeof openTop3Picker==='function')openTop3Picker();},120);
+}
+function checkBriefing(){const td=fmtLD(new Date());if(S.briefingShown[td])return;const overdue=R.filter(r=>!r.completed&&urg(r.dueDate)==='overdue');const missed=R.filter(r=>!r.completed&&fmtLD(new Date(r.dueDate))===fmtLD(new Date(Date.now()-86400000)));const top3=getTodayTop3();if(!overdue.length&&!missed.length&&!top3.length&&new Date().getDay()!==0)return;S.briefingShown[td]=true;sv(false);const ov=document.createElement('div');ov.className='brief-ov';ov.id='briefOv';const sunday=new Date().getDay()===0;ov.innerHTML=`<div style="font-size:44px">☀️</div><h2>Morning catch-up</h2><div class="brief-sub">${overdue.length} overdue · ${missed.length} from yesterday · ${top3.length}/3 top picks</div><div style="text-align:left;width:100%;max-width:340px;margin-bottom:18px">${overdue.slice(0,3).map(r=>`<div class="brief-item">🔴 ${esc(r.title)}</div>`).join('')}${missed.slice(0,2).map(r=>`<div class="brief-item">📦 Yesterday: ${esc(r.title)}</div>`).join('')}${top3.map(r=>`<div class="brief-item">⭐ ${esc(r.title)}</div>`).join('')||'<div class="brief-item">Pick your top 3 from My Day</div>'}</div><div class="safe-row" style="justify-content:center"><button onclick="document.getElementById('briefOv').remove();go('myday')">Start day</button><button onclick="openTop3FromPrompts()">Pick top 3</button>${sunday?`<button onclick="document.getElementById('briefOv').remove();openWeeklyReset()">Sunday reset</button>`:''}</div>`;document.body.appendChild(ov);if(sunday)setTimeout(openWeeklyReset,400)}
+function openWeeklyReset(){const key=fmtLD(new Date());if(X.weeklyResetShown[key])return;X.weeklyResetShown[key]=true;sv(false);const overdue=R.filter(r=>!r.completed&&urg(r.dueDate)==='overdue').length;const snoozed=R.filter(r=>!r.completed&&(r.snoozeCount||0)>=2).slice(0,5);const ov=document.createElement('div');ov.className='mo';ov.onclick=e=>{if(e.target===ov)ov.remove()};ov.innerHTML=`<div class="mo-in" onclick="event.stopPropagation()"><div class="mo-h"></div><h3>Sunday weekly reset</h3><div class="mini-item">Overdue tasks: ${overdue}</div><div class="mini-item">Tasks you keep snoozing: ${snoozed.length}</div>${snoozed.map(r=>`<div class="mini-item">😴 ${esc(r.title)}</div>`).join('')}<div class="safe-row"><button class="xbtn" onclick="go('weekly');this.closest('.mo').remove()">Open weekly planner</button><button class="xbtn" onclick="openTop3FromPrompts()">Pick top 3</button><button class="xbtn" onclick="this.closest('.mo').remove()">Close</button></div></div>`;document.body.appendChild(ov)}
 async function checkNotifications(catchUp=false){const now=Date.now();let changed=false;pruneNotificationHistory();for(const r of R){if(r.completed)continue;const eligible=(r.alerts||['15']).filter(a=>{const key=r.id+'_'+a;if(notified.has(key))return false;const at=new Date(r.dueDate).getTime()-parseInt(a,10)*60000;const withinNormalWindow=now>=at&&now<at+120000;const withinCatchUpWindow=catchUp&&now>=at&&now-at<=NOTIFICATION_CATCHUP_MS;return withinNormalWindow||withinCatchUpWindow;}).sort((a,b)=>parseInt(a,10)-parseInt(b,10));if(eligible.length){const a=eligible[0],key=r.id+'_'+a,dueText=a==='0'?'Due now!':`Due ${getReminderLabel(a)}`;const sent=await sendNotification(`⏰ ${r.title}`,{body:dueText,tag:key,renotify:false,vibrate:[200,100,200],data:{id:r.id,view:'tasks'}});if(sent){rememberReminderStage(r.id,a,r.alerts||['15']);changed=true;}}if(r.nag&&!r.completed&&now>=new Date(r.dueDate).getTime()){const slot=Math.floor(now/(15*60*1000));const key=`${r.id}_nag_${slot}`;if(!notified.has(key)){const sent=await sendNotification(`🔔 ${r.title}`,{body:'Nag mode: still waiting for completion.',tag:key,renotify:true,vibrate:[250,120,250],data:{id:r.id,view:'tasks'}});if(sent){rememberNotified(key);changed=true;}}}}if(changed)sv(false)}
 function genReport(){const now=new Date(),wa=new Date(now);wa.setDate(wa.getDate()-7);const completed=R.filter(r=>r.completed&&r.completedAt&&new Date(r.completedAt)>=wa);const overdue=R.filter(r=>!r.completed&&urg(r.dueDate)==='overdue');const upcoming=R.filter(r=>!r.completed&&urg(r.dueDate)!=='overdue').sort((a,b)=>new Date(a.dueDate)-new Date(b.dueDate)).slice(0,10);const ttW=timeLogs.filter(l=>new Date(l.date)>=wa).reduce((a,l)=>a+l.duration,0);let rpt=`WEEKLY REPORT — ${wa.toLocaleDateString()} to ${now.toLocaleDateString()}\n\n✅ COMPLETED (${completed.length})\n${completed.map(r=>'  • '+r.title).join('\n')||'  None'}\n\n🔴 OVERDUE (${overdue.length})\n${overdue.map(r=>'  • '+r.title).join('\n')||'  None'}\n\n📋 UPCOMING\n${upcoming.map(r=>'  • '+r.title+' — '+fmtD(r.dueDate)).join('\n')||'  None'}\n\n⏱️ TIME: ${fmtDur(ttW)}\n🔥 STREAK: ${getStreak()} days\n🕌 Prayer cache days: ${Object.keys(X.prayerCache||{}).length}\n💵 Open bill forecast: $${R.filter(r=>!r.completed&&r.category==='bills').reduce((a,r)=>a+(Number(r.amount)||0),0).toFixed(2)}`;const url=URL.createObjectURL(new Blob([rpt],{type:'text/plain'}));const a=document.createElement('a');a.href=url;a.download='weekly_report.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 function rDispatch(){let h=rHdr('Dispatch Log','FlowLine AI calls');const weekAgo=new Date(Date.now()-7*86400000);const recent=dispatches.filter(d=>new Date(d.date)>=weekAgo);const sev={standard:0,urgent:0,emergency:0};recent.forEach(d=>sev[d.severity]=(sev[d.severity]||0)+1);h+=`<div style="padding:10px 14px"><div style="display:flex;gap:8px;margin-bottom:10px"><button class="xbtn" onclick="openDispatchForm()">📞 Log New Call</button><button class="xbtn" onclick="openClientBook()">👥 Client Book</button><button class="xbtn" onclick="exportInvoiceCsv()">🧾 Invoice CSV</button></div><div style="display:flex;gap:8px;margin-bottom:12px"><div class="sm" style="flex:1"><div class="sm-n">${recent.length}</div><div class="sm-l">7d volume</div></div><div class="sm" style="flex:1"><div class="sm-n" style="color:var(--orange)">${sev.urgent||0}</div><div class="sm-l">Urgent</div></div><div class="sm" style="flex:1"><div class="sm-n" style="color:var(--red)">${sev.emergency||0}</div><div class="sm-l">Emergency</div></div></div>`;
