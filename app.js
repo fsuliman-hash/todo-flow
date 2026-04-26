@@ -1471,7 +1471,7 @@ function ensureEnhancementStyles(){
   .panel{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:14px;margin:10px 14px;overflow:hidden}.panel:last-child{margin-bottom:calc(70px + env(safe-area-inset-bottom,0px))}.panel h3{font-size:13px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}.list-row{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)}.list-row:last-child{border-bottom:none}.list-main{min-width:0;flex:1}.list-main b{display:block;font-size:13px;word-break:break-word}.list-main span{display:block;font-size:11px;color:var(--text3);line-height:1.45;word-break:break-word}
   .focus-ov{position:fixed;inset:0;z-index:180;background:var(--bg);padding:24px;display:flex;flex-direction:column;justify-content:center;text-align:center}.focus-title{font-size:28px;font-weight:900;margin:14px 0}.focus-notes{font-size:14px;color:var(--text2);margin:0 auto 18px;max-width:320px}.focus-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}.focus-actions button{padding:14px 18px;border:none;border-radius:14px;font-weight:800}
   .timeline{padding:12px 14px calc(72px + env(safe-area-inset-bottom,0px))}.time-row{display:grid;grid-template-columns:72px 1fr;gap:10px;position:relative}.time-row:not(:last-child){padding-bottom:12px}.time-stamp{font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;padding-top:6px}.time-card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:10px 12px}.time-type{font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);margin-bottom:4px}
-  .nav-slot-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}.nav-slot{padding:10px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);text-align:left;color:var(--text)}.nav-slot.active{border-color:var(--accent);background:var(--abg)}.nav-slot small{display:block;font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}.nav-slot b{font-size:13px;color:var(--text)}.nav-chooser{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.nav-choice{padding:10px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);text-align:left;color:var(--text)}.nav-choice.on{border-color:var(--accent);background:var(--abg);color:var(--accent)}
+  .nav-slot-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}.nav-slot{padding:10px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);text-align:left;color:var(--text)!important}.nav-slot.active{border-color:var(--accent);background:var(--abg)}.nav-slot small{display:block;font-size:10px;color:var(--text3)!important;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}.nav-slot b{font-size:13px;color:var(--text)!important}.nav-chooser{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.nav-choice{padding:10px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);text-align:left;color:var(--text)!important}.nav-choice.on{border-color:var(--accent);background:var(--abg);color:var(--accent)!important}
   .action-pulse{animation:popDone .4s ease}.sparkle{position:fixed;z-index:250;font-size:22px;animation:spark .8s ease forwards;pointer-events:none} @keyframes spark{0%{opacity:0;transform:scale(.5) translateY(10px)}30%{opacity:1}100%{opacity:0;transform:scale(1.4) translateY(-26px)}}@keyframes popDone{0%{transform:scale(.97)}50%{transform:scale(1.02)}100%{transform:scale(1)}}
   .task-swipe-left{box-shadow:inset 80px 0 0 rgba(34,197,94,.12)}.task-swipe-right{box-shadow:inset -80px 0 0 rgba(239,68,68,.10)}
   .card.completing{opacity:.45;transform:scale(.985);filter:saturate(.6);transition:opacity var(--complete-fade-ms,.55s) ease,transform var(--complete-fade-ms,.55s) ease,filter var(--complete-fade-ms,.55s) ease}
@@ -3272,6 +3272,153 @@ function checkDueNowBanner(){
     return noun || referent || prep || toList || timeCue || colonTitle || bareAdd;
   }
 
+  let pendingDuplicateDeletePlan = null;
+  let pendingCompletedDeletePlan = null;
+  let pendingOverdueDeletePlan = null;
+
+  function shouldDeleteDuplicatesFromChat(text) {
+    const t = String(text || '').toLowerCase();
+    const hasDeleteVerb = /\b(delete|remove|clean|dedupe|deduplicate)\b/.test(t);
+    const hasDupWord = /\b(duplicate|duplicates|dupe|copy|repeated)\b/.test(t);
+    return hasDeleteVerb && hasDupWord;
+  }
+
+  function shouldDeleteCompletedFromChat(text) {
+    const t = String(text || '').toLowerCase();
+    return /\b(delete|remove|clear|clean)\b/.test(t) && /\b(completed|done|finished)\b/.test(t);
+  }
+
+  function shouldDeleteOverdueFromChat(text) {
+    const t = String(text || '').toLowerCase();
+    return /\b(delete|remove|clear|clean)\b/.test(t) && /\b(overdue|late|past due)\b/.test(t);
+  }
+
+  function normalizedTaskTitleForDup(v) {
+    return String(v || '')
+      .toLowerCase()
+      .replace(/\(copy\)/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function dueDayKeyForDup(r) {
+    if (!r || r.unscheduled || (typeof isUnscheduledISO === 'function' && isUnscheduledISO(r.dueDate))) return 'undated';
+    const d = new Date(r.dueDate);
+    if (Number.isNaN(d.getTime())) return 'undated';
+    return fmtLD(d);
+  }
+
+  function buildDuplicateDeletePlan() {
+    if (!Array.isArray(R)) return { removeIds: [], keepIds: [] };
+    const map = new Map();
+    R.filter(function (r) {
+      return r && !r.completed;
+    }).forEach(function (r) {
+      const title = normalizedTaskTitleForDup(r.title);
+      if (!title) return;
+      const key = title + '|' + dueDayKeyForDup(r);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(r);
+    });
+
+    const removeIds = [];
+    const keepIds = [];
+    map.forEach(function (items) {
+      if (!items || items.length < 2) return;
+      const sorted = items.slice().sort(function (a, b) {
+        const ta = new Date(a.createdAt || a.updated_at || 0).getTime() || 0;
+        const tb = new Date(b.createdAt || b.updated_at || 0).getTime() || 0;
+        return ta - tb;
+      });
+      const keep = sorted[0];
+      keepIds.push(keep.id);
+      sorted.slice(1).forEach(function (dup) {
+        removeIds.push(dup.id);
+      });
+    });
+    return { removeIds, keepIds };
+  }
+
+  function applyDuplicateDeletePlan(plan) {
+    if (!plan || !Array.isArray(plan.removeIds) || !plan.removeIds.length) return 0;
+    const backup = R.slice();
+    const toRemove = new Set(plan.removeIds.map(String));
+    const removedTasks = [];
+    R.forEach(function (r) {
+      if (r && toRemove.has(String(r.id))) removedTasks.push(r);
+    });
+    if (!removedTasks.length) return 0;
+
+    removedTasks.forEach(function (r) {
+      const copy = { ...r, deletedAt: new Date().toISOString() };
+      trash.push(copy);
+    });
+    R = R.filter(function (r) {
+      return !(r && toRemove.has(String(r.id)));
+    });
+    removedTasks.forEach(function (r) {
+      if (r && r.id) clearReminderKeys(r.id);
+    });
+    reindexOrders(false);
+    _undoCallback = function () {
+      R = backup;
+      sv();
+      render();
+    };
+    sv();
+    render();
+    if (typeof showToast === 'function') showToast(`Deleted ${removedTasks.length} duplicate task${removedTasks.length===1?'':'s'}`, 'Undo');
+    return removedTasks.length;
+  }
+
+  function buildCompletedDeletePlan() {
+    const removeIds = (Array.isArray(R) ? R : [])
+      .filter(function (r) { return r && r.completed; })
+      .map(function (r) { return r.id; });
+    return { removeIds };
+  }
+
+  function buildOverdueDeletePlan() {
+    const removeIds = (Array.isArray(R) ? R : [])
+      .filter(function (r) { return r && !r.completed && typeof urg === 'function' && urg(r.dueDate) === 'overdue'; })
+      .map(function (r) { return r.id; });
+    return { removeIds };
+  }
+
+  function applyGenericDeletePlan(plan, label) {
+    if (!plan || !Array.isArray(plan.removeIds) || !plan.removeIds.length) return 0;
+    const backup = R.slice();
+    const toRemove = new Set(plan.removeIds.map(String));
+    const removedTasks = [];
+    R.forEach(function (r) {
+      if (r && toRemove.has(String(r.id))) removedTasks.push(r);
+    });
+    if (!removedTasks.length) return 0;
+    removedTasks.forEach(function (r) {
+      const copy = { ...r, deletedAt: new Date().toISOString() };
+      trash.push(copy);
+    });
+    R = R.filter(function (r) {
+      return !(r && toRemove.has(String(r.id)));
+    });
+    removedTasks.forEach(function (r) {
+      if (r && r.id) clearReminderKeys(r.id);
+    });
+    reindexOrders(false);
+    _undoCallback = function () {
+      R = backup;
+      sv();
+      render();
+    };
+    sv();
+    render();
+    if (typeof showToast === 'function') {
+      showToast(`Deleted ${removedTasks.length} ${label} task${removedTasks.length===1?'':'s'}`, 'Undo');
+    }
+    return removedTasks.length;
+  }
+
   function addTaskFromChatTask(task) {
     if (!task || !String(task.title || '').trim()) return null;
     const rec = normalizeReminder({
@@ -3412,6 +3559,33 @@ function checkDueNowBanner(){
           } else {
             reply = await fetchServerChatReply(text);
           }
+        } else if (pendingDuplicateDeletePlan && /^(confirm|yes|y|ok|do it|delete them)$/i.test(text)) {
+          const removed = applyDuplicateDeletePlan(pendingDuplicateDeletePlan);
+          pendingDuplicateDeletePlan = null;
+          reply = removed
+            ? `Done. I deleted ${removed} duplicate task${removed===1?'':'s'}.`
+            : 'I could not find duplicates to delete anymore.';
+        } else if (pendingCompletedDeletePlan && /^(confirm|yes|y|ok|do it|delete them)$/i.test(text)) {
+          const removed = applyGenericDeletePlan(pendingCompletedDeletePlan, 'completed');
+          pendingCompletedDeletePlan = null;
+          reply = removed
+            ? `Done. I deleted ${removed} completed task${removed===1?'':'s'}.`
+            : 'I could not find completed tasks to delete anymore.';
+        } else if (pendingOverdueDeletePlan && /^(confirm|yes|y|ok|do it|delete them)$/i.test(text)) {
+          const removed = applyGenericDeletePlan(pendingOverdueDeletePlan, 'overdue');
+          pendingOverdueDeletePlan = null;
+          reply = removed
+            ? `Done. I deleted ${removed} overdue task${removed===1?'':'s'}.`
+            : 'I could not find overdue tasks to delete anymore.';
+        } else if (pendingDuplicateDeletePlan && /^(cancel|no|n|skip|don'?t delete)$/i.test(text)) {
+          pendingDuplicateDeletePlan = null;
+          reply = 'Canceled. I did not delete any tasks.';
+        } else if (pendingCompletedDeletePlan && /^(cancel|no|n|skip|don'?t delete)$/i.test(text)) {
+          pendingCompletedDeletePlan = null;
+          reply = 'Canceled. I did not delete completed tasks.';
+        } else if (pendingOverdueDeletePlan && /^(cancel|no|n|skip|don'?t delete)$/i.test(text)) {
+          pendingOverdueDeletePlan = null;
+          reply = 'Canceled. I did not delete overdue tasks.';
         } else if (pendingChatTaskDraft && /^(confirm|yes|y|ok|add it|do it)$/i.test(text)) {
           const dup = findDuplicateTaskCandidate(pendingChatTaskDraft);
           if (dup) {
@@ -3428,6 +3602,30 @@ function checkDueNowBanner(){
         } else if (pendingChatTaskDraft && /^(cancel|no|n|skip|don'?t add)$/i.test(text)) {
           clearPendingChatDraft();
           reply = 'Canceled. I did not add that task.';
+        } else if (shouldDeleteDuplicatesFromChat(text)) {
+          const plan = buildDuplicateDeletePlan();
+          if (!plan.removeIds.length) {
+            reply = 'I did not find duplicate active tasks to delete.';
+          } else {
+            pendingDuplicateDeletePlan = plan;
+            reply = `I found ${plan.removeIds.length} duplicate task${plan.removeIds.length===1?'':'s'} to remove. Reply "confirm" to delete them or "cancel" to keep everything.`;
+          }
+        } else if (shouldDeleteCompletedFromChat(text)) {
+          const plan = buildCompletedDeletePlan();
+          if (!plan.removeIds.length) {
+            reply = 'I did not find completed tasks to delete.';
+          } else {
+            pendingCompletedDeletePlan = plan;
+            reply = `I found ${plan.removeIds.length} completed task${plan.removeIds.length===1?'':'s'} to delete. Reply "confirm" to continue or "cancel" to keep them.`;
+          }
+        } else if (shouldDeleteOverdueFromChat(text)) {
+          const plan = buildOverdueDeletePlan();
+          if (!plan.removeIds.length) {
+            reply = 'I did not find overdue tasks to delete.';
+          } else {
+            pendingOverdueDeletePlan = plan;
+            reply = `I found ${plan.removeIds.length} overdue task${plan.removeIds.length===1?'':'s'} to delete. Reply "confirm" to continue or "cancel" to keep them.`;
+          }
         } else if (shouldCreateTaskFromChat(text)) {
           const extractedTask = await fetchServerTaskAction(text);
           const validated = validateChatTaskDraft(extractedTask, text);
