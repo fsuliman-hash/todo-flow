@@ -39,6 +39,28 @@
     }
   }
 
+  function applySyncPillLayout() {
+    var pill = document.getElementById('tf-global-sync-pill');
+    if (!pill) return;
+    var isDesktop = false;
+    try {
+      isDesktop = !!(window.matchMedia && window.matchMedia('(min-width: 980px)').matches);
+    } catch (_) {
+      isDesktop = false;
+    }
+
+    // Desktop layout has a fixed left rail nav (~88px + margins); keep sync pill clear of it.
+    if (isDesktop) {
+      pill.style.left = '122px';
+      pill.style.top = '18px';
+      pill.style.maxWidth = 'min(42vw,260px)';
+    } else {
+      pill.style.left = '12px';
+      pill.style.top = '18px';
+      pill.style.maxWidth = 'min(52vw,200px)';
+    }
+  }
+
   function initSyncPill() {
     if (document.getElementById('tf-global-sync-pill')) return;
     var pill = document.createElement('button');
@@ -55,6 +77,7 @@
       tfManualSyncClick();
     };
     document.body.appendChild(pill);
+    applySyncPillLayout();
     updateSyncUi();
     if (typeof syncManager !== 'undefined') {
       syncManager.onSyncChange(updateSyncUi);
@@ -350,6 +373,8 @@
     if (!window.__tfAuthSessionSyncUi) {
       window.__tfAuthSessionSyncUi = true;
       window.addEventListener('tf-auth-session-updated', updateSyncUi);
+      window.addEventListener('resize', applySyncPillLayout);
+      window.addEventListener('orientationchange', applySyncPillLayout);
     }
     setTimeout(function () {
       if (typeof supabase !== 'undefined' && supabase.needsPasswordRecovery()) {

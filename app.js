@@ -1,7 +1,7 @@
 // ==================== DATA ====================
 const APP_VERSION = "6.1.3";
 const SK="rp3",STK="rp3_set",HK="rp3_hab",SHK="rp3_shift",TLK="rp3_tlog",TMK="rp3_tmpl",RTK="rp3_rtn",BKP="rp3_backup",TRK="rp3_trash",WTK="rp3_water",DPK="rp3_dispatch";
-const SETTINGS_DEFAULTS={darkMode:false,briefingShown:{},lastSavedAt:null,lastImportAt:null,notifiedHistory:{},aiAssistMode:'manual',aiDailyLimit:40,aiUsage:{day:'',calls:0,byType:{}}};
+const SETTINGS_DEFAULTS={darkMode:false,briefingShown:{},lastSavedAt:null,lastImportAt:null,notifiedHistory:{},aiAssistMode:'manual',aiDailyLimit:40,aiUsage:{day:'',calls:0,byType:{}},completionAnimSpeed:'normal'};
 const BASE_CATS=[
   {key:"work",label:"Work",icon:"💼",color:"#3B82F6"},{key:"personal",label:"Personal",icon:"🏠",color:"#10B981"},
   {key:"bills",label:"Bills",icon:"💰",color:"#F59E0B"},{key:"health",label:"Health",icon:"🩺",color:"#EF4444"},
@@ -750,7 +750,7 @@ window.addEventListener('popstate',function(e){
 history.replaceState({view:view},'');
 function nlpAdd(){
   const text=(nlpDraft||document.getElementById("nlpIn")?.value||"").trim();
-  if(!text)return;
+  if(!text){openAdd();return;}
   const inp=document.getElementById("nlpIn");
   const p=parseNLP(text),d=new Date();
   if(p.date&&p.time)d.setTime(new Date(p.date+"T"+p.time).getTime());
@@ -803,7 +803,7 @@ function voiceInput(){
   };
   try{rec.start()}catch(e){listening=false;render();alert("Voice input could not start on this device right now.");}
 }
-function applySug(a){if(a==="overdue"){filter="all";sortBy="date";render();return}nlpDraft=a;const inp=document.getElementById("nlpIn");if(inp){inp.value=a;inp.focus();inp.setSelectionRange(a.length,a.length)}}
+function applySug(a){if(a==="overdue"){filter="overdue";sortBy="date";go('tasks');return}nlpDraft=a;const inp=document.getElementById("nlpIn");if(inp){inp.value=a;inp.focus();inp.setSelectionRange(a.length,a.length)}}
 function toggleSub(rid,si){const r=R.find(x=>x.id===rid);if(r&&r.subtasks&&r.subtasks[si])r.subtasks[si].done=!r.subtasks[si].done;sv();render()}
 function delR(id){const r=R.find(x=>x.id===id);if(!r)return;r.deletedAt=new Date().toISOString();trash.push({...r});R=R.filter(x=>x.id!==id);clearReminderKeys(id);reindexOrders(false);sv();render();showUndo(id)}
 function dragS(e,id){dragId=id;e.dataTransfer.effectAllowed="move"}
@@ -1163,6 +1163,7 @@ const NAV_LIBRARY=[
 let X={};
 let touchState={id:null,x:0,y:0,t:0,timer:null,menuOpened:false,cancelled:false};
 let activeKidId="",lastCompletionState=null,prayerSyncing=false;
+let completionPendingTimers={};
 function defaultExtras(){
   return {
     themeColor:"amber",
@@ -1435,6 +1436,8 @@ function ensureEnhancementStyles(){
   .nav-slot-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}.nav-slot{padding:10px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);text-align:left}.nav-slot.active{border-color:var(--accent);background:var(--abg)}.nav-slot small{display:block;font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}.nav-slot b{font-size:13px}.nav-chooser{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.nav-choice{padding:10px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);text-align:left}.nav-choice.on{border-color:var(--accent);background:var(--abg);color:var(--accent)}
   .action-pulse{animation:popDone .4s ease}.sparkle{position:fixed;z-index:250;font-size:22px;animation:spark .8s ease forwards;pointer-events:none} @keyframes spark{0%{opacity:0;transform:scale(.5) translateY(10px)}30%{opacity:1}100%{opacity:0;transform:scale(1.4) translateY(-26px)}}@keyframes popDone{0%{transform:scale(.97)}50%{transform:scale(1.02)}100%{transform:scale(1)}}
   .task-swipe-left{box-shadow:inset 80px 0 0 rgba(34,197,94,.12)}.task-swipe-right{box-shadow:inset -80px 0 0 rgba(239,68,68,.10)}
+  .card.completing{opacity:.45;transform:scale(.985);filter:saturate(.6);transition:opacity var(--complete-fade-ms,.55s) ease,transform var(--complete-fade-ms,.55s) ease,filter var(--complete-fade-ms,.55s) ease}
+  .card.completing .ctitle{text-decoration:line-through;text-decoration-thickness:2px}
   .prayer-top,.money-top{padding:10px 14px 0}.safe-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.safe-row>*{margin:0!important}
   .task-filter-head{padding:10px 14px 0}.task-filter-label{font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}.task-filter-actions{display:flex;gap:8px;flex-wrap:wrap}.task-cat-row{padding-top:8px}.more-group{margin-bottom:18px}.more-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.more-card{padding:12px;border-radius:16px;border:1.5px solid var(--border);background:var(--card);color:var(--text);text-align:left}.more-card-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}.more-card-top b{font-size:13px;color:var(--text)}.more-card span{display:block;font-size:11px;line-height:1.4;color:var(--text2)}.more-emoji{font-size:20px;line-height:1}
   .prod-toolbar{padding:10px 14px 0}.prod-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}.prod-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.prod-kpi{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:12px;cursor:pointer;transition:transform .1s,opacity .1s}.prod-kpi:active{transform:scale(.93);opacity:.7}.prod-kpi b{display:block;font-size:20px;font-weight:900}.prod-kpi span{display:block;font-size:11px;color:var(--text3);margin-top:4px}.coach-card{background:linear-gradient(180deg,var(--card),var(--bg2));border:1.5px solid var(--border);border-radius:18px;padding:14px}.coach-title{font-size:18px;font-weight:900;margin-bottom:6px}.coach-copy{font-size:12px;color:var(--text2);line-height:1.45}.reason-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.reason-chip{padding:6px 8px;border-radius:999px;background:var(--bg2);border:1px solid var(--border);font-size:10px;font-weight:700;color:var(--text2)}.plan-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.plan-card{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:12px}.plan-card h4{font-size:12px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}.queue-line{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border)}.queue-line:last-child{border-bottom:none;padding-bottom:0}.queue-line b{display:block;font-size:13px}.queue-line span{display:block;font-size:11px;color:var(--text3);line-height:1.35}.queue-min{white-space:nowrap;font-size:10px;color:var(--text3);font-weight:800}.lane-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:var(--bg2);border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text2)}.lane-pill.on{border-color:var(--accent);background:var(--abg);color:var(--accent)}.focus-queue{display:flex;flex-direction:column;gap:10px}.focus-step{padding:10px 12px;border-radius:14px;background:var(--bg2);border:1px solid var(--border)}.focus-step b{display:block;font-size:13px}.focus-step span{display:block;font-size:11px;color:var(--text3);margin-top:4px}.coach-banner{margin:10px 14px 0;padding:12px 14px;border-radius:16px;border:1.5px solid var(--border);background:var(--card)}.coach-banner h3{font-size:13px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}.coach-banner p{font-size:12px;color:var(--text2);line-height:1.45;margin:0}.compact-cards .card{margin:0 0 8px}.compact-cards .card:last-child{margin-bottom:0}
@@ -1442,17 +1445,17 @@ function ensureEnhancementStyles(){
   body.mobile-shell .task-desktop-grid{display:block}.mobile-shell .task-side-col{margin-top:10px}.mobile-shell .task-side-col .panel:last-child{margin-bottom:calc(74px + env(safe-area-inset-bottom,0px))}.mobile-shell .mo-in{max-width:min(92vw,520px)}.mobile-shell .panel:last-child{margin-bottom:calc(74px + env(safe-area-inset-bottom,0px))}
   @media (max-width:380px){.dash-grid,.prayer-grid,.matrix-grid,.prayer-chip-row,.nav-slot-grid,.nav-chooser,.more-grid,.plan-grid,.prod-kpis{grid-template-columns:1fr}}
   body.desktop-shell{max-width:none!important;padding:20px 20px 28px 0!important;background:linear-gradient(180deg,var(--bg),var(--bg2));}
-  .desktop-shell #app{max-width:1380px!important;min-height:calc(100vh - 40px);padding:0 0 116px 124px!important;margin:0 auto!important}
+  .desktop-shell #app{max-width:1380px!important;min-height:calc(100vh - 40px);padding:0 0 36px 124px!important;margin:0 auto!important}
   .desktop-shell .bnav{left:18px;top:18px;bottom:18px;transform:none;width:88px;max-width:none!important;flex-direction:column;justify-content:flex-start;gap:6px;padding:10px 8px;border-top:none;border-right:1px solid var(--border);border-radius:24px;box-shadow:0 18px 40px rgba(0,0,0,.14);height:auto}
   .desktop-shell .bnav button{min-height:62px;padding:8px 6px;border-radius:16px;font-size:10px;line-height:1.15}.desktop-shell .bnav button.active{background:var(--abg)}.desktop-shell .bnav button:hover{background:var(--bg2);color:var(--accent)}
   .desktop-shell .hdr,.desktop-shell .nlp-bar,.desktop-shell .nlp-hint,.desktop-shell .suggest-bar,.desktop-shell .task-filter-head,.desktop-shell .filters,.desktop-shell .sort-row,.desktop-shell .search-row,.desktop-shell .settings,.desktop-shell .cal,.desktop-shell .timeline,.desktop-shell .sv,.desktop-shell .dash-grid,.desktop-shell .prayer-grid,.desktop-shell .kid-tabs,.desktop-shell .coach-banner,.desktop-shell .prod-toolbar{max-width:1230px;margin-left:auto;margin-right:auto}
   .desktop-shell .hdr{margin-top:0;border-radius:28px;padding:24px 24px 18px;box-shadow:0 20px 40px rgba(15,23,42,.16)}
   .desktop-shell .task-desktop-grid{max-width:1230px;margin:0 auto;grid-template-columns:minmax(0,1.35fr) 360px;align-items:start;gap:18px;padding:0 14px}.desktop-shell #taskList.task-stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:8px 0 0!important}.desktop-shell #taskList.task-stack .card{margin-bottom:0}.desktop-shell #taskList.task-stack .empty{grid-column:1/-1}.desktop-shell .task-side-col{position:sticky;top:18px}
   .desktop-shell .dash-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.desktop-shell .dash-card.full{grid-column:1/-1}.desktop-shell .plan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.desktop-shell .more-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.desktop-shell .prod-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .desktop-shell .filters,.desktop-shell .kid-tabs,.desktop-shell .task-filter-actions,.desktop-shell .safe-row{overflow:visible;flex-wrap:wrap}.desktop-shell .task-filter-actions{row-gap:8px}.desktop-shell .panel{max-width:1230px;margin-left:auto;margin-right:auto}.desktop-shell .panel:last-child{margin-bottom:140px}
+  .desktop-shell .filters,.desktop-shell .kid-tabs,.desktop-shell .task-filter-actions,.desktop-shell .safe-row{overflow:visible;flex-wrap:wrap}.desktop-shell .task-filter-actions{row-gap:8px}.desktop-shell .panel{max-width:1230px;margin-left:auto;margin-right:auto}.desktop-shell .panel:last-child{margin-bottom:36px}
   .desktop-shell .mo{padding:16px 24px 20px 128px;overflow-y:auto;align-items:flex-start;justify-content:flex-start}.desktop-shell .mo-in{margin:12px auto;max-width:min(1000px,calc(100vw - 220px));border-radius:26px;padding:22px 22px 26px;box-shadow:0 30px 60px rgba(2,6,23,.26)}.desktop-shell .mo-h{margin-bottom:16px}
   .desktop-shell .frow{align-items:flex-end}.desktop-shell .cgrid,.desktop-shell .cgrid3,.desktop-shell .cgrid4{gap:8px}.desktop-shell .emoji-grid{grid-template-columns:repeat(8,1fr)}.desktop-shell .color-grid{grid-template-columns:repeat(8,1fr)}.desktop-shell textarea.finp{min-height:88px}
-  .desktop-shell .settings{padding-bottom:140px}.desktop-shell .clist{padding-bottom:140px}.desktop-shell .timeline,.desktop-shell .cal,.desktop-shell .sv{padding-bottom:140px}.desktop-shell .settings .xbtn:hover,.desktop-shell .safe-row .xbtn:hover,.desktop-shell .chip-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .desktop-shell .settings{padding-bottom:40px}.desktop-shell .clist{padding-bottom:40px}.desktop-shell .timeline,.desktop-shell .cal,.desktop-shell .sv{padding-bottom:40px}.desktop-shell .settings .xbtn:hover,.desktop-shell .safe-row .xbtn:hover,.desktop-shell .chip-btn:hover{border-color:var(--accent);color:var(--accent)}
   .desktop-shell .search-row input:focus,.desktop-shell .nlp-bar input:focus,.desktop-shell .finp:focus{box-shadow:0 0 0 4px var(--abg)}
   @media (min-width:1280px){.desktop-shell .dash-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.desktop-shell .task-desktop-grid{grid-template-columns:minmax(0,1.5fr) 380px}.desktop-shell .more-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
   @media (min-width:1500px){.desktop-shell #app{max-width:1480px!important}.desktop-shell .hdr,.desktop-shell .nlp-bar,.desktop-shell .nlp-hint,.desktop-shell .suggest-bar,.desktop-shell .task-filter-head,.desktop-shell .filters,.desktop-shell .sort-row,.desktop-shell .search-row,.desktop-shell .settings,.desktop-shell .cal,.desktop-shell .timeline,.desktop-shell .sv,.desktop-shell .dash-grid,.desktop-shell .kid-tabs,.desktop-shell .coach-banner,.desktop-shell .prod-toolbar,.desktop-shell .panel,.desktop-shell .task-desktop-grid{max-width:1320px}.desktop-shell #taskList.task-stack{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -1682,7 +1685,11 @@ function rTasks(){
   if(sug)h+=`<div class="suggest-bar"><span>💡</span><span class="st">${esc(sug.text)}</span><button onclick="applySug('${esc(sug.action)}')">Go</button><button class="dism" onclick="this.parentElement.remove()">✕</button></div>`;
   if(X.clipboardSuggestion)h+=`<div class="suggest-bar"><span>📋</span><span class="st">Clipboard looks like a date/reminder: ${esc(X.clipboardSuggestion)}</span><button onclick="useClipboardSuggestion()">Use</button><button class="dism" onclick="dismissClipboardSuggestion()">✕</button></div>`;
   if(ttActive)h+=rTTActive();
+  const recentDone=R.filter(r=>r&&r.completed&&r.completedAt).sort((a,b)=>new Date(b.completedAt)-new Date(a.completedAt)).slice(0,4);
   h+=`<div class="task-filter-head"><div class="task-filter-label">Task views</div><div class="task-filter-actions"><button class="chip-btn${filter==='all'?' on':''}" onclick="filter='all';render()">Active</button><button class="chip-btn${filter==='done'?' on':''}" onclick="filter='done';render()">Done</button><button class="chip-btn" onclick="openBulkImport()">Bulk import</button><button class="chip-btn" onclick="go('settings');setTimeout(()=>document.getElementById('catManage')?.scrollIntoView({behavior:'smooth',block:'start'}),120)">Manage categories</button></div></div>`;
+  if(filter!=='done'&&recentDone.length){
+    h+=`<div class="panel" style="margin:8px 14px 0"><h3>Recently completed</h3>${recentDone.map(r=>`<div class="list-row"><div class="list-main"><b>${esc(r.title)}</b><span>${r.completedAt?new Date(r.completedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):''}</span></div><button class="cact" onclick="reopenTask('${r.id}')" title="Bring back to active">↩</button></div>`).join('')}</div>`;
+  }
   h+=`<div class="filters task-cat-row">`;
   CATS.forEach(c=>{h+=`<button class="fbtn${filter===c.key?' active':''}" onclick="filter='${c.key}';render()">${c.icon} ${c.label}</button>`});
   h+=`</div><div class="sort-row"><span id="taskCountLabel">${getFiltered().length} items${sortBy==='manual'?' · drag to reorder':''}</span><select onchange="setSort(this.value)"><option value="date"${sortBy==='date'?' selected':''}>Date</option><option value="priority"${sortBy==='priority'?' selected':''}>Priority</option><option value="name"${sortBy==='name'?' selected':''}>A-Z</option><option value="manual"${sortBy==='manual'?' selected':''}>Manual</option></select></div>`;
@@ -1694,7 +1701,7 @@ function rCards(list){
     const u=urg(r.dueDate),cat=getCategory(r.category),pri=PRIS.find(p=>p.key===r.priority)||PRIS[0];
     const stD=(r.subtasks||[]).filter(s=>s.done).length,stT=(r.subtasks||[]).length;const blocked=!!(r.dependsOn&&R.find(x=>x.id===r.dependsOn && !x.completed));
     const kid=r.childId?X.children.find(c=>c.id===r.childId):null;
-    return`<div class="card pri-${r.priority||'low'}${r.completed?' completed':''}" draggable="true" ondragstart="dragS(event,'${r.id}')" ondragover="dragO(event)" ondragleave="this.classList.remove('drag-over')" ondrop="dragD(event,'${r.id}')" ontouchstart="taskTouchStart(event,'${r.id}')" ontouchmove="taskTouchMove(event,'${r.id}')" ontouchend="taskTouchEnd(event,'${r.id}')" ontouchcancel="taskTouchCancel(event,'${r.id}')" oncontextmenu="event.preventDefault();openTaskMenu('${r.id}')">
+    return`<div class="card pri-${r.priority||'low'}${r.completed?' completed':''}" data-task-id="${r.id}" draggable="true" ondragstart="dragS(event,'${r.id}')" ondragover="dragO(event)" ondragleave="this.classList.remove('drag-over')" ondrop="dragD(event,'${r.id}')" ontouchstart="taskTouchStart(event,'${r.id}')" ontouchmove="taskTouchMove(event,'${r.id}')" ontouchend="taskTouchEnd(event,'${r.id}')" ontouchcancel="taskTouchCancel(event,'${r.id}')" oncontextmenu="event.preventDefault();openTaskMenu('${r.id}')">
       <div class="crow">
         <span class="drag-handle">⠿</span>
         <button class="chk${r.completed?' on':''}" onclick="${blocked?"alert('Complete the dependency first!')":"toggleComp('"+r.id+"')"}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></button>
@@ -1724,23 +1731,78 @@ function openTaskMenu(id){const r=R.find(x=>x.id===id);if(!r)return;const ov=doc
 function togglePin(id){const r=R.find(x=>x.id===id);if(!r)return;r.pinned=!r.pinned;reindexOrders(false);sv();render();}
 function duplicateTask(id){const r=R.find(x=>x.id===id);if(!r)return;const copy=normalizeReminder({...r,id:gid(),title:`${r.title} (copy)`,completed:false,completedAt:undefined,createdAt:new Date().toISOString(),order:R.length,subtasks:(r.subtasks||[]).map(s=>({...s,done:false}))},R.length);R.unshift(copy);logAction('duplicate',`Duplicated ${r.title}`);sv();render();showToast('Task duplicated');}
 function triggerCompletionCelebration(){const s=document.createElement('div');s.className='sparkle';s.textContent='✨';s.style.left='50%';s.style.top='40%';document.body.appendChild(s);setTimeout(()=>s.remove(),850);try{if(navigator.vibrate)navigator.vibrate([15,40,15])}catch(e){}try{const ctx=new (window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=880;g.gain.value=.01;o.start();g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.12);o.stop(ctx.currentTime+.12);}catch(e){}}
+function taskListLikelyHidesCompleted(){return view==='tasks'&&filter!=='done'}
+function markTaskCompletingUi(id){
+  const card=document.querySelector(`[data-task-id="${id}"]`);
+  if(!card)return;
+  card.style.setProperty('--complete-fade-ms',(getCompletionFadeMs()/1000)+'s');
+  card.classList.add('completed','completing');
+  const chk=card.querySelector('.chk');
+  if(chk)chk.classList.add('on');
+}
+function clearPendingCompletionTimer(id){
+  if(!completionPendingTimers[id])return;
+  clearTimeout(completionPendingTimers[id]);
+  delete completionPendingTimers[id];
+}
+function getCompletionFadeMs(){
+  const k=String(S.completionAnimSpeed||'normal');
+  if(k==='fast')return 350;
+  if(k==='slow')return 1200;
+  return 700;
+}
+function previewCompletionAnimation(){
+  const root=document.getElementById('tf-completion-preview');
+  if(!root)return;
+  root.classList.remove('completing');
+  root.style.setProperty('--complete-fade-ms',(getCompletionFadeMs()/1000)+'s');
+  // Restart transition predictably when repeatedly tapping preview.
+  void root.offsetWidth;
+  root.classList.add('completing');
+  setTimeout(()=>root.classList.remove('completing'),getCompletionFadeMs()+80);
+}
+function reopenTask(id){
+  const r=R.find(x=>x.id===id);if(!r)return;
+  clearPendingCompletionTimer(id);
+  r.completed=false;delete r.completedAt;
+  logAction('reopen',`Re-opened ${r.title}`,{id});
+  reindexOrders(false);sv();render();showToast('Task moved back to active');
+}
+function finalizeTaskCompletion(r,id,prev){
+  r.completedAt=new Date().toISOString();
+  logAction('complete',`Completed ${r.title}`,{id});
+  if(r.childId){const kid=X.children.find(c=>c.id===r.childId);if(kid)kid.points+=1;}
+  if(r.recurrence&&r.recurrence!=='none'){
+    const d=new Date(r.dueDate);if(r.recurrence==='daily')d.setDate(d.getDate()+1);else if(r.recurrence==='weekly')d.setDate(d.getDate()+7);else if(r.recurrence==='biweekly')d.setDate(d.getDate()+14);else if(r.recurrence==='monthly')d.setMonth(d.getMonth()+1);else if(r.recurrence==='weekdays'){d.setDate(d.getDate()+1);while(d.getDay()===0||d.getDay()===6)d.setDate(d.getDate()+1)}else if(r.recurrence==='first_mon'){d.setMonth(d.getMonth()+1);d.setDate(1);while(d.getDay()!==1)d.setDate(d.getDate()+1)}
+    R.push(normalizeReminder({...r,id:gid(),completed:false,completedAt:undefined,dueDate:d.toISOString(),createdAt:new Date().toISOString(),alerts:[...(r.alerts||[])],tags:[...(r.tags||[])],subtasks:(r.subtasks||[]).map(s=>({...s,done:false})),order:R.length},R.length));
+  }
+  triggerCompletionCelebration();
+  lastCompletionState={id,prev};
+  _undoCallback=()=>{const rr=R.find(x=>x.id===id);if(rr){rr.completed=prev.completed;rr.completedAt=prev.completedAt;rr.dueDate=prev.dueDate;sv();render();}};
+  showToast('Completed','Undo');
+  reindexOrders(false);sv();render();
+}
 function toggleComp(id){
   const r=R.find(x=>x.id===id);if(!r)return;
   const prev={completed:r.completed,completedAt:r.completedAt,dueDate:r.dueDate};
+  if(r.completed&&completionPendingTimers[id]){
+    reopenTask(id);
+    return;
+  }
   r.completed=!r.completed;clearReminderKeys(id);
   if(r.completed){
-    r.completedAt=new Date().toISOString();
-    logAction('complete',`Completed ${r.title}`,{id});
-    if(r.childId){const kid=X.children.find(c=>c.id===r.childId);if(kid)kid.points+=1;}
-    if(r.recurrence&&r.recurrence!=='none'){
-      const d=new Date(r.dueDate);if(r.recurrence==='daily')d.setDate(d.getDate()+1);else if(r.recurrence==='weekly')d.setDate(d.getDate()+7);else if(r.recurrence==='biweekly')d.setDate(d.getDate()+14);else if(r.recurrence==='monthly')d.setMonth(d.getMonth()+1);else if(r.recurrence==='weekdays'){d.setDate(d.getDate()+1);while(d.getDay()===0||d.getDay()===6)d.setDate(d.getDate()+1)}else if(r.recurrence==='first_mon'){d.setMonth(d.getMonth()+1);d.setDate(1);while(d.getDay()!==1)d.setDate(d.getDate()+1)}
-      R.push(normalizeReminder({...r,id:gid(),completed:false,completedAt:undefined,dueDate:d.toISOString(),createdAt:new Date().toISOString(),alerts:[...(r.alerts||[])],tags:[...(r.tags||[])],subtasks:(r.subtasks||[]).map(s=>({...s,done:false})),order:R.length},R.length));
+    if(taskListLikelyHidesCompleted()){
+      markTaskCompletingUi(id);
+      completionPendingTimers[id]=setTimeout(()=>{
+        clearPendingCompletionTimer(id);
+        finalizeTaskCompletion(r,id,prev);
+      },getCompletionFadeMs());
+      sv(false);
+      return;
     }
-    triggerCompletionCelebration();
-    lastCompletionState={id,prev};
-    _undoCallback=()=>{const rr=R.find(x=>x.id===id);if(rr){rr.completed=prev.completed;rr.completedAt=prev.completedAt;rr.dueDate=prev.dueDate;sv();render();}};
-    showToast('Completed','Undo');
-  } else {delete r.completedAt;logAction('reopen',`Re-opened ${r.title}`,{id});}
+    finalizeTaskCompletion(r,id,prev);
+    return;
+  } else {clearPendingCompletionTimer(id);delete r.completedAt;logAction('reopen',`Re-opened ${r.title}`,{id});}
   reindexOrders(false);sv();render();
 }
 function useClipboardSuggestion(){if(!X.clipboardSuggestion)return;nlpDraft=X.clipboardSuggestion;X.clipboardSuggestion=null;sv(false);go('tasks');setTimeout(()=>{const inp=document.getElementById('nlpIn');if(inp){inp.value=nlpDraft;inp.focus();}},60)}
@@ -1946,6 +2008,7 @@ function rSettings(){
   }
   h+=`</div>`;
   h+=`<div class="sitem"><div><div class="slbl">Bigger tap targets</div><div class="sdesc">Better one-handed use</div></div><button class="tog${X.bigTap?' on':''}" onclick="X.bigTap=!X.bigTap;applyTheme();sv();render()"></button></div>`;
+  h+=`<div style="margin-top:14px"><div class="slbl" style="margin-bottom:8px">Task complete animation</div><div class="safe-row"><button class="chip-btn${S.completionAnimSpeed==='fast'?' on':''}" onclick="S.completionAnimSpeed='fast';sv(false);render();showToast('Completion speed: fast')">Fast</button><button class="chip-btn${(!S.completionAnimSpeed||S.completionAnimSpeed==='normal')?' on':''}" onclick="S.completionAnimSpeed='normal';sv(false);render();showToast('Completion speed: normal')">Normal</button><button class="chip-btn${S.completionAnimSpeed==='slow'?' on':''}" onclick="S.completionAnimSpeed='slow';sv(false);render();showToast('Completion speed: slow')">Slow</button><button class="xbtn" onclick="previewCompletionAnimation()">Preview</button></div><div id="tf-completion-preview" class="card pri-medium" style="margin:10px 0 0;padding:10px 12px;pointer-events:none"><div class="crow"><button class="chk on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></button><div class="cbody"><div class="ctitle">Sample completed task</div><div class="cmeta"><span class="cdate">Preview speed</span></div></div></div></div></div>`;
   h+=`<div style="margin-top:16px"><div class="slbl" style="margin-bottom:8px">Accent Color</div><div class="safe-row">${Object.keys(THEME_PRESETS).map(k=>`<button class="chip-btn${X.themeColor===k?' on':''}" onclick="setThemeColor('${k}')">${k}</button>`).join('')}</div></div>`;
   h+=`<div style="margin-top:16px"><div class="slbl" style="margin-bottom:8px">Bottom Nav</div><div class="sdesc" style="margin-bottom:8px">Pick a slot, then tap any icon below to assign it.</div><div class="nav-slot-grid">${(X.navTabs||[]).slice(0,4).map((k,i)=>{const item=NAV_LIBRARY.find(n=>n.k===k)||NAV_LIBRARY[0];return `<button class="nav-slot${(X.navEditSlot??0)===i?' active':''}" onclick="selectNavSlot(${i})"><small>Slot ${i+1}</small><b>${item.i} ${esc(item.l)}</b></button>`}).join('')}</div><div class="nav-chooser">${NAV_LIBRARY.map(n=>`<button class="nav-choice${X.navTabs.includes(n.k)?' on':''}" onclick="assignNavTab('${n.k}')">${n.i} ${esc(n.l)}</button>`).join('')}</div></div>`;
   h+=`<div class="panel" id="catManage"><h3>Task categories</h3><div class="sdesc" style="margin-bottom:10px">Add your own categories so filters and forms match how you think.</div>${CATS.map(c=>`<div class="list-row"><div class="list-main"><b>${c.icon} ${esc(c.label)}</b><span>${esc(c.key)}${isCustomCategory(c.key)?' · custom':''}</span></div><div class="safe-row"><button class="cact" onclick="editTaskCategory('${c.key}')">✏️</button>${isCustomCategory(c.key)?`<button class="cact" onclick="deleteTaskCategory('${c.key}')">🗑</button>`:''}</div></div>`).join('')}<div class="safe-row" style="margin-top:10px"><button class="xbtn" onclick="addTaskCategory()">＋ Add category</button></div></div>`;
