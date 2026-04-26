@@ -1,8 +1,4 @@
 .env
 .env.local
+.env.txt
 node_modules/
-.env
-.env.txt
-
-.env
-.env.txt

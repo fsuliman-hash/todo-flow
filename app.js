@@ -480,21 +480,29 @@ function getPrimaryShiftForDate(ds){const day=getShiftsForDate(ds);return day.fi
 function getShiftBadgeHtml(input){
   const dayShifts=Array.isArray(input)?input.slice().sort(sortShiftEntries):getShiftsForDate(input);
   if(!dayShifts.length)return "";
-  const primary=dayShifts.find(s=>!isOffShiftType(s.type))||dayShifts[0];
+  const workedShifts=dayShifts.filter(s=>!isOffShiftType(s.type));
+  const offOnly=workedShifts.length===0;
+  const primary=workedShifts[0]||dayShifts[0];
+  if(offOnly&&dayShifts.length===1){
+    return `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;background:${getShiftColor(primary.type)}22;color:${getShiftColor(primary.type)}">OFF</span>`;
+  }
   if(dayShifts.length===1){
     const timeLabel=primary.start&&primary.end&&!isOffShiftType(primary.type)?` ${primary.start}-${primary.end}`:"";
     return `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;background:${getShiftColor(primary.type)}22;color:${getShiftColor(primary.type)}">${esc(primary.type)}${timeLabel}</span>`;
   }
-  const worked=dayShifts.filter(s=>!isOffShiftType(s.type)).length;
-  return `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;background:${getShiftColor(primary.type)}22;color:${getShiftColor(primary.type)}">${dayShifts.length} shifts${worked&&worked!==dayShifts.length?` · ${worked} worked`:""}</span>`;
+  const worked=workedShifts.length;
+  if(!worked)return `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;background:${getShiftColor(primary.type)}22;color:${getShiftColor(primary.type)}">OFF</span>`;
+  return `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;background:${getShiftColor(primary.type)}22;color:${getShiftColor(primary.type)}">${worked} worked${worked!==dayShifts.length?` · ${dayShifts.length-worked} off`:""}</span>`;
 }
 function getShiftCellLabel(dayShifts){
   if(!dayShifts.length)return "";
-  if(dayShifts.length===1){
-    const t=(dayShifts[0].type||"").toUpperCase();
+  const workedShifts=dayShifts.filter(s=>!isOffShiftType(s.type));
+  if(!workedShifts.length)return "OFF";
+  if(workedShifts.length===1){
+    const t=(workedShifts[0].type||"").toUpperCase();
     return t.length>4?t.slice(0,3):t;
   }
-  return `${dayShifts.length} SH`;
+  return `${workedShifts.length} SH`;
 }
 
 function getShiftColor(type){
@@ -521,6 +529,22 @@ function openShiftDay(ds,editEntryId=""){
     document.body.appendChild(ov);
   }
   renderShiftModal();
+}
+
+function closeShiftModal(){
+  const ov=document.getElementById("shiftM");
+  if(ov)ov.remove();
+  shiftModalDate=null;
+  shiftEditId=null;
+  window._shiftType="Day";
+}
+
+function closeAnyModalOverlay(){
+  const mods=[...document.querySelectorAll('.mo')];
+  if(!mods.length)return false;
+  mods.forEach(m=>m.remove());
+  closeShiftModal();
+  return true;
 }
 
 function renderShiftModal(){
@@ -590,7 +614,7 @@ function delShift(ds){
   shifts=shifts.filter(s=>s.date!==ds);
   shiftEditId=null;
   sv();render();
-  if(document.getElementById("shiftM")&&shiftModalDate===ds)renderShiftModal();
+  if(shiftModalDate===ds)closeShiftModal();
   showToast(count===1?"Shift deleted":`${count} shifts deleted`);
 }
 function shiftCalPrev(){shiftCalDate.setMonth(shiftCalDate.getMonth()-1);render()}
@@ -719,8 +743,8 @@ function go(v){
   render();
 }
 window.addEventListener('popstate',function(e){
+  if(closeAnyModalOverlay()){render();return}
   if(e.state&&e.state.view){view=e.state.view;render()}
-  else if(document.querySelector('.mo')){document.querySelector('.mo').remove()}
   else{view='tasks';render()}
 });
 history.replaceState({view:view},'');
@@ -3036,6 +3060,96 @@ function checkDueNowBanner(){
     return normalized;
   }
 
+  let pendingChatTaskDraft = null;
+
+  function normalizeChatDraftTitle(v) {
+    return String(v || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  }
+
+  function userAskedForDateInText(text) {
+    const t = String(text || '').toLowerCase();
+    return (
+      /\b(today|tomorrow|tonight|next week|next month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/.test(t) ||
+      /\b\d{4}-\d{2}-\d{2}\b/.test(t) ||
+      /\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/.test(t) ||
+      /\b\d{1,2}(:\d{2})?\s*(am|pm)\b/.test(t)
+    );
+  }
+
+  function validateChatTaskDraft(task, sourceText) {
+    if (!task || typeof task !== 'object') return { ok: false, error: 'I could not parse a valid task from that request.' };
+    const title = String(task.title || '').trim().replace(/\s+/g, ' ');
+    if (!title || title.length < 2) return { ok: false, error: 'Task title is too short. Please include what you want to do.' };
+    if (title.length > 180) return { ok: false, error: 'Task title is too long. Keep it under 180 characters.' };
+
+    const category = CATS.some(function (c) { return c.key === task.category; }) ? task.category : 'personal';
+    const priority = PRIS.some(function (p) { return p.key === task.priority; }) ? task.priority : 'medium';
+    const recurrence = RECS.some(function (r) { return r.key === task.recurrence; }) ? task.recurrence : 'none';
+    const notes = String(task.notes || '').trim().slice(0, 4000);
+
+    let dueDateStr = String(task.dueDate || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dueDateStr) && parseInt(dueDateStr.slice(0, 4), 10) >= 2099) dueDateStr = '';
+    if (dueDateStr && !/^\d{4}-\d{2}-\d{2}$/.test(dueDateStr)) return { ok: false, error: 'Date format was invalid. Please use YYYY-MM-DD.' };
+
+    let dueTimeStr = String(task.dueTime || '').trim();
+    if (dueTimeStr) {
+      if (!/^\d{2}:\d{2}$/.test(dueTimeStr)) return { ok: false, error: 'Time format was invalid. Please use HH:MM (24h).' };
+      const hh = parseInt(dueTimeStr.slice(0, 2), 10);
+      const mm = parseInt(dueTimeStr.slice(3, 5), 10);
+      if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return { ok: false, error: 'Time value was invalid.' };
+    } else {
+      dueTimeStr = '09:00';
+    }
+
+    const hasDate = /^\d{4}-\d{2}-\d{2}$/.test(dueDateStr);
+    const dueDate = hasDate ? buildTaskDateIso(dueDateStr, dueTimeStr) : UNSCHEDULED_SENTINEL_ISO;
+    const unscheduled = !hasDate;
+    const riskyReasons = [];
+    if (unscheduled && userAskedForDateInText(sourceText)) riskyReasons.push('I could not confidently resolve the due date.');
+    if (title.length < 4) riskyReasons.push('Title looks very short.');
+
+    return {
+      ok: true,
+      needsConfirm: riskyReasons.length > 0,
+      riskyReasons: riskyReasons,
+      task: {
+        title: title,
+        notes: notes,
+        category: category,
+        priority: priority,
+        recurrence: recurrence,
+        dueDate: dueDate,
+        unscheduled: unscheduled,
+      },
+    };
+  }
+
+  function findDuplicateTaskCandidate(task) {
+    if (!Array.isArray(R)) return null;
+    const titleNorm = normalizeChatDraftTitle(task && task.title);
+    if (!titleNorm) return null;
+    return R.find(function (r) {
+      if (!r || r.completed) return false;
+      if (normalizeChatDraftTitle(r.title) !== titleNorm) return false;
+      const rUnscheduled = !!(r.unscheduled || (typeof isUnscheduledISO === 'function' && isUnscheduledISO(r.dueDate)));
+      if (!!task.unscheduled !== rUnscheduled) return false;
+      if (task.unscheduled) return true;
+      const a = new Date(task.dueDate).getTime();
+      const b = new Date(r.dueDate).getTime();
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+      return Math.abs(a - b) <= 2 * 60 * 60 * 1000;
+    }) || null;
+  }
+
+  function clearPendingChatDraft() {
+    pendingChatTaskDraft = null;
+  }
+
+  function taskDraftPreviewLine(task) {
+    if (!task) return '';
+    return `"${task.title}"${task.unscheduled ? ' (no due date)' : ` due ${fmtD(task.dueDate)}`}, ${task.priority}`;
+  }
+
   function shouldCreateTaskFromChat(text) {
     const t = String(text || '').toLowerCase();
     const verb =
@@ -3059,31 +3173,16 @@ function checkDueNowBanner(){
 
   function addTaskFromChatTask(task) {
     if (!task || !String(task.title || '').trim()) return null;
-    const title = String(task.title || '').trim();
-    const notes = String(task.notes || '').trim();
-    const category = CATS.some(c => c.key === task.category) ? task.category : 'personal';
-    const priority = PRIS.some(p => p.key === task.priority) ? task.priority : 'medium';
-    const recurrence = RECS.some(r => r.key === task.recurrence) ? task.recurrence : 'none';
-    let dueDateStr = String(task.dueDate || '').trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dueDateStr) && parseInt(dueDateStr.slice(0, 4), 10) >= 2099) {
-      dueDateStr = '';
-    }
-    const dueTimeStr = String(task.dueTime || '').trim() || '09:00';
-    const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(dueDateStr)
-      ? buildTaskDateIso(dueDateStr, dueTimeStr)
-      : UNSCHEDULED_SENTINEL_ISO;
-    const unscheduled = dueDate === UNSCHEDULED_SENTINEL_ISO;
-
     const rec = normalizeReminder({
       id: gid(),
-      title,
-      notes,
-      dueDate,
-      startDate: unscheduled ? '' : dueDate,
-      unscheduled,
-      category,
-      priority,
-      recurrence,
+      title: String(task.title || '').trim(),
+      notes: String(task.notes || '').trim(),
+      dueDate: task.dueDate,
+      startDate: task.unscheduled ? '' : task.dueDate,
+      unscheduled: !!task.unscheduled,
+      category: CATS.some(function (c) { return c.key === task.category; }) ? task.category : 'personal',
+      priority: PRIS.some(function (p) { return p.key === task.priority; }) ? task.priority : 'medium',
+      recurrence: RECS.some(function (r) { return r.key === task.recurrence; }) ? task.recurrence : 'none',
       alerts: ['15'],
       tags: ['chat-ai'],
       sourceMode: 'chat-ai',
@@ -3095,7 +3194,7 @@ function checkDueNowBanner(){
     R.push(rec);
     sv();
     render();
-    if (typeof showToast === 'function') showToast('Task added from chat', 2500);
+    if (typeof showToast === 'function') showToast('Task added from chat');
     return rec;
   }
 
@@ -3212,13 +3311,45 @@ function checkDueNowBanner(){
           } else {
             reply = await fetchServerChatReply(text);
           }
+        } else if (pendingChatTaskDraft && /^(confirm|yes|y|ok|add it|do it)$/i.test(text)) {
+          const dup = findDuplicateTaskCandidate(pendingChatTaskDraft);
+          if (dup) {
+            reply = `I did not add it because a similar open task already exists: "${dup.title}".`;
+          } else {
+            const createdFromDraft = addTaskFromChatTask(pendingChatTaskDraft);
+            if (createdFromDraft) {
+              reply = `Added "${createdFromDraft.title}" to your tasks${createdFromDraft.unscheduled ? '.' : ` for ${fmtD(createdFromDraft.dueDate)}.`}`;
+            } else {
+              reply = 'I could not add that draft task. Please try again.';
+            }
+          }
+          clearPendingChatDraft();
+        } else if (pendingChatTaskDraft && /^(cancel|no|n|skip|don'?t add)$/i.test(text)) {
+          clearPendingChatDraft();
+          reply = 'Canceled. I did not add that task.';
         } else if (shouldCreateTaskFromChat(text)) {
           const extractedTask = await fetchServerTaskAction(text);
-          const created = addTaskFromChatTask(extractedTask);
-          if (created) {
-            reply = `Added "${created.title}" to your tasks${created.unscheduled ? '.' : ` for ${fmtD(created.dueDate)}.`}`;
+          const validated = validateChatTaskDraft(extractedTask, text);
+          if (!validated.ok) {
+            reply = validated.error || 'I could not safely parse a task from that request.';
+            if (typeof showToast === 'function') showToast(reply);
           } else {
-            reply = await fetchServerChatReply(text);
+            const dup = findDuplicateTaskCandidate(validated.task);
+            if (dup) {
+              reply = `I did not add it because a similar open task already exists: "${dup.title}".`;
+            } else if (validated.needsConfirm) {
+              pendingChatTaskDraft = validated.task;
+              reply =
+                `I parsed this task: ${taskDraftPreviewLine(validated.task)}.\n` +
+                `${validated.riskyReasons.join(' ')} Reply "confirm" to add it or "cancel" to skip.`;
+            } else {
+              const created = addTaskFromChatTask(validated.task);
+              if (created) {
+                reply = `Added "${created.title}" to your tasks${created.unscheduled ? '.' : ` for ${fmtD(created.dueDate)}.`}`;
+              } else {
+                reply = await fetchServerChatReply(text);
+              }
+            }
           }
         } else {
           reply = await fetchServerChatReply(text);
