@@ -290,6 +290,39 @@ class SupabaseClient {
       if (sess.refresh_token) localStorage.setItem('sb_refresh_token', sess.refresh_token);
     }
   }
+  _extractErrorMessage(parsed, status) {
+    return (parsed && (parsed.message || parsed.error_description || parsed.hint || parsed.error)) || `HTTP ${status}`;
+  }
+  _looksLikeJwtExpired(status, msg) {
+    const m = String(msg || '').toLowerCase();
+    return status === 401 || m.includes('jwt expired') || m.includes('token has expired');
+  }
+  async refreshSession() {
+    const refreshToken = localStorage.getItem('sb_refresh_token');
+    if (!this.url || !this.key || !refreshToken) return false;
+    const res = await fetch(`${this.url}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: this.key },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.access_token) {
+      localStorage.removeItem('sb_auth_token');
+      localStorage.removeItem('sb_refresh_token');
+      localStorage.removeItem('sb_user');
+      this.authToken = null;
+      this.user = null;
+      return false;
+    }
+    this.authToken = data.access_token;
+    localStorage.setItem('sb_auth_token', this.authToken);
+    if (data.refresh_token) localStorage.setItem('sb_refresh_token', data.refresh_token);
+    if (data.user) {
+      this.user = data.user;
+      localStorage.setItem('sb_user', JSON.stringify(this.user));
+    }
+    return true;
+  }
 
   async request(method, endpoint, data = null, extraHeaders = {}) {
     if (!this.url || !this.key) {
@@ -301,19 +334,36 @@ class SupabaseClient {
     };
     if (data !== null && data !== undefined) opts.body = JSON.stringify(data);
 
-    const res = await fetch(`${this.url}/rest/v1${endpoint}`, opts);
-    const text = await res.text();
-    let parsed = null;
-    try {
-      parsed = text ? JSON.parse(text) : null;
-    } catch {
-      parsed = { message: text || `HTTP ${res.status}` };
-    }
+    const readResponse = async (res) => {
+      const text = await res.text();
+      let parsed = null;
+      try {
+        parsed = text ? JSON.parse(text) : null;
+      } catch {
+        parsed = { message: text || `HTTP ${res.status}` };
+      }
+      return parsed;
+    };
 
+    let res = await fetch(`${this.url}/rest/v1${endpoint}`, opts);
+    let parsed = await readResponse(res);
     if (!res.ok) {
-      const msg =
-        (parsed && (parsed.message || parsed.error_description || parsed.hint)) ||
-        `HTTP ${res.status}`;
+      const msg = this._extractErrorMessage(parsed, res.status);
+      if (this._looksLikeJwtExpired(res.status, msg)) {
+        const refreshed = await this.refreshSession();
+        if (refreshed) {
+          const retryOpts = {
+            method,
+            headers: { ...this._baseHeaders(), ...extraHeaders },
+          };
+          if (data !== null && data !== undefined) retryOpts.body = JSON.stringify(data);
+          res = await fetch(`${this.url}/rest/v1${endpoint}`, retryOpts);
+          parsed = await readResponse(res);
+        }
+      }
+    }
+    if (!res.ok) {
+      const msg = this._extractErrorMessage(parsed, res.status);
       throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
     }
     return parsed;
@@ -331,6 +381,7 @@ class SupabaseClient {
       this.authToken = data.session.access_token;
       this.user = data.user;
       localStorage.setItem('sb_auth_token', this.authToken);
+      if (data.session.refresh_token) localStorage.setItem('sb_refresh_token', data.session.refresh_token);
       localStorage.setItem('sb_user', JSON.stringify(this.user || {}));
     }
     return { ok: res.ok, data, error: !res.ok ? data : null };
@@ -348,6 +399,7 @@ class SupabaseClient {
       this.authToken = data.access_token;
       this.user = data.user;
       localStorage.setItem('sb_auth_token', this.authToken);
+      if (data.refresh_token) localStorage.setItem('sb_refresh_token', data.refresh_token);
       localStorage.setItem('sb_user', JSON.stringify(this.user || {}));
     }
     return { ok: res.ok, data, error: !res.ok ? data : null };
