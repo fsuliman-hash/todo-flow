@@ -2747,10 +2747,29 @@ function checkDueNowBanner(){
 (function() {
   const CHAT_STORE_KEY = 'rp3_chat_history_v1';
   let pendingDryRunConfirm = null;
-  function debugChatLog(runId, hypothesisId, location, message, data){
-    // #region agent log
-    fetch('http://127.0.0.1:7623/ingest/ba9f3f7f-430a-40e2-aa31-3a4e30ede01d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cbed65'},body:JSON.stringify({sessionId:'cbed65',runId,hypothesisId,location,message,data,timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
+  const DRY_RUN_CONFIRM_TTL_MS = 5 * 60 * 1000;
+  function makeDryRunConfirmToken(){
+    return `drc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,10)}`;
+  }
+  function isPendingDryRunConfirmValid(token){
+    if(!pendingDryRunConfirm)return { ok:false, reason:'missing' };
+    if(!token || String(token)!==String(pendingDryRunConfirm.token||''))return { ok:false, reason:'stale' };
+    const expiresAt=Number(pendingDryRunConfirm.expiresAt||0);
+    if(!expiresAt||Date.now()>expiresAt)return { ok:false, reason:'expired' };
+    return { ok:true };
+  }
+  function clearPendingDryRunConfirm(){
+    pendingDryRunConfirm=null;
+    document.getElementById('chat-dryrun-confirm-card')?.remove();
+  }
+  function appendDryRunAssistantNote(msg){
+    const messages=document.getElementById('chat-messages');
+    if(!messages)return;
+    const aiMsg=document.createElement('div');
+    aiMsg.innerHTML='<div style="background:#f0f0f0;padding:12px 16px;border-radius:12px;font-size:13px;max-width:80%;color:#333;">'+esc(String(msg||''))+'</div>';
+    messages.appendChild(aiMsg);
+    appendChatHistory('assistant',String(msg||''));
+    messages.scrollTop=messages.scrollHeight;
   }
 
   function loadChatHistory() {
@@ -2855,7 +2874,12 @@ function checkDueNowBanner(){
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, context: buildTaskActionContext(), todayHint: chatTodayHint() }),
+      body: JSON.stringify({
+        message: text,
+        context: buildTaskActionContext(),
+        categories: Array.isArray(CATS) ? CATS.map(function(c){ return String(c?.key || '').trim().toLowerCase(); }).filter(Boolean).slice(0,64) : [],
+        todayHint: chatTodayHint(),
+      }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -3005,6 +3029,50 @@ function checkDueNowBanner(){
       homeworkCount:Array.isArray(X?.homework)?X.homework.length:0,
       medicationLogCount:Array.isArray(X?.medicationLogs)?X.medicationLogs.length:0,
       childrenCount:Array.isArray(X?.children)?X.children.length:0,
+      categoryCounts:(function(){
+        const out={};
+        if(Array.isArray(R)){
+          R.forEach(function(t){
+            if(!t||t.completed)return;
+            const key=String(t.category||'General');
+            out[key]=(out[key]||0)+1;
+          });
+        }
+        return out;
+      })(),
+      recentExpenses:Array.isArray(X?.expenses)
+        ? X.expenses.slice(-20).reverse().slice(0,5).map(function(e){
+            return {
+              title:String(e?.title||e?.name||''),
+              amount:Number(e?.amount||0)||0,
+              category:String(e?.category||''),
+            };
+          })
+        : [],
+      recentHomework:Array.isArray(X?.homework)
+        ? X.homework.slice(-20).reverse().slice(0,5).map(function(h){
+            return {
+              title:String(h?.title||h?.task||''),
+              child:String(h?.child||h?.childName||''),
+              dueDate:String(h?.dueDate||''),
+              done:!!h?.done,
+            };
+          })
+        : [],
+      recentMedicationLogs:Array.isArray(X?.medicationLogs)
+        ? X.medicationLogs.slice(-20).reverse().slice(0,5).map(function(m){
+            return {
+              medication:String(m?.medication||m?.name||''),
+              child:String(m?.child||m?.childName||''),
+              at:String(m?.at||m?.time||m?.date||''),
+            };
+          })
+        : [],
+      children:Array.isArray(X?.children)
+        ? X.children.slice(0,8).map(function(c){
+            return String(c?.name||c?.title||'').trim();
+          }).filter(Boolean)
+        : [],
     };
     const base = chatApiBase();
     const url = (base || '') + '/api/chat-plan';
@@ -3016,6 +3084,7 @@ function checkDueNowBanner(){
         context: buildTaskActionContext(),
         tasks,
         shifts: shiftSnapshot,
+        categories: Array.isArray(CATS) ? CATS.map(function(c){ return String(c?.key || '').trim().toLowerCase(); }).filter(Boolean).slice(0,64) : [],
         moduleSummary,
         todayHint: chatTodayHint(),
         actionCap: getChatActionCap(),
@@ -3628,6 +3697,30 @@ function checkDueNowBanner(){
   }
 
   let pendingChatTaskDraft = null;
+  const TASK_DRAFT_CONFIRM_TTL_MS = 5 * 60 * 1000;
+  function makeTaskDraftToken(){
+    return `td_${Math.random().toString(36).slice(2,8)}`;
+  }
+  function buildPendingTaskDraft(task){
+    const now=Date.now();
+    return { task, token: makeTaskDraftToken(), createdAt: now, expiresAt: now + TASK_DRAFT_CONFIRM_TTL_MS };
+  }
+  function parseTaskDraftToken(text, mode){
+    const t=String(text||'').trim().toLowerCase();
+    if(mode==='confirm'){
+      const m=t.match(/^(confirm|yes|ok|add it|do it)(\s+([a-z0-9_]{3,16}))?$/i);
+      return m && m[3] ? String(m[3]).toLowerCase() : '';
+    }
+    const m=t.match(/^(cancel|no|skip|don'?t add)(\s+([a-z0-9_]{3,16}))?$/i);
+    return m && m[3] ? String(m[3]).toLowerCase() : '';
+  }
+  function validatePendingTaskDraft(state, text){
+    if(!state||!state.task)return { ok:false, reason:'missing' };
+    if(Date.now()>Number(state.expiresAt||0))return { ok:false, reason:'expired' };
+    const token=parseTaskDraftToken(text,'confirm')||parseTaskDraftToken(text,'cancel');
+    if(token && token!==String(state.token||''))return { ok:false, reason:'stale' };
+    return { ok:true };
+  }
 
   function normalizeChatDraftTitle(v) {
     return String(v || '').trim().replace(/\s+/g, ' ').toLowerCase();
@@ -3741,6 +3834,40 @@ function checkDueNowBanner(){
   let pendingDuplicateDeletePlan = null;
   let pendingCompletedDeletePlan = null;
   let pendingOverdueDeletePlan = null;
+  const DELETE_CONFIRM_TTL_MS = 5 * 60 * 1000;
+
+  function makeDeleteConfirmToken(){
+    return Math.random().toString(36).slice(2,8);
+  }
+  function wrapDeleteConfirmPlan(plan){
+    const now=Date.now();
+    return {
+      plan: plan,
+      token: makeDeleteConfirmToken(),
+      createdAt: now,
+      expiresAt: now + DELETE_CONFIRM_TTL_MS,
+    };
+  }
+  function parseConfirmTokenText(text){
+    const t=String(text||'').trim().toLowerCase();
+    const m=t.match(/^(confirm|yes|ok|do it|delete them)\s+([a-z0-9]{4,12})$/i);
+    return m ? String(m[2]||'').toLowerCase() : '';
+  }
+  function parseCancelTokenText(text){
+    const t=String(text||'').trim().toLowerCase();
+    const m=t.match(/^(cancel|no|skip|don'?t delete)\s+([a-z0-9]{4,12})$/i);
+    return m ? String(m[2]||'').toLowerCase() : '';
+  }
+  function isDeleteConfirmValid(state, text){
+    if(!state||!state.plan)return { ok:false, reason:'missing' };
+    const now=Date.now();
+    if(now>Number(state.expiresAt||0))return { ok:false, reason:'expired' };
+    const suppliedConfirmToken=parseConfirmTokenText(text);
+    const suppliedCancelToken=parseCancelTokenText(text);
+    const supplied=suppliedConfirmToken||suppliedCancelToken;
+    if(supplied&&String(supplied)!==String(state.token||''))return { ok:false, reason:'stale' };
+    return { ok:true };
+  }
 
   function shouldDeleteDuplicatesFromChat(text) {
     const t = String(text || '').toLowerCase();
@@ -3979,32 +4106,39 @@ function checkDueNowBanner(){
     const risk=String(pendingDryRunConfirm.risk||'medium');
     const riskBg=risk==='high'?'rgba(220,38,38,.14)':risk==='medium'?'rgba(245,158,11,.16)':'rgba(22,163,74,.14)';
     const riskFg=risk==='high'?'#DC2626':risk==='medium'?'#B45309':'#15803D';
+    const token=String(pendingDryRunConfirm.token||'');
+    const secondsLeft=Math.max(0,Math.ceil((Number(pendingDryRunConfirm.expiresAt||0)-Date.now())/1000));
     const card=document.createElement('div');
     card.id='chat-dryrun-confirm-card';
-    card.innerHTML=`<div style="background:var(--card);border:1px solid var(--border);padding:10px 12px;border-radius:12px;max-width:86%;font-size:12px;color:var(--text)"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px"><div style="font-weight:700">Preview ready</div><span style="padding:2px 8px;border-radius:999px;background:${riskBg};color:${riskFg};font-weight:800;text-transform:uppercase;font-size:10px;letter-spacing:.04em">${risk} risk</span></div><div style="color:var(--text2);margin-bottom:8px">Action: ${esc(pendingDryRunConfirm.intent)}.</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" onclick="confirmDryRunChatAction()" style="border:none;border-radius:10px;padding:7px 12px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer">Confirm run</button><button type="button" onclick="cancelDryRunChatAction()" style="border:1px solid var(--border);border-radius:10px;padding:7px 12px;background:var(--bg2);color:var(--text);font-weight:700;cursor:pointer">Cancel</button></div></div>`;
+    card.innerHTML=`<div style="background:var(--card);border:1px solid var(--border);padding:10px 12px;border-radius:12px;max-width:86%;font-size:12px;color:var(--text)"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px"><div style="font-weight:700">Preview ready</div><span style="padding:2px 8px;border-radius:999px;background:${riskBg};color:${riskFg};font-weight:800;text-transform:uppercase;font-size:10px;letter-spacing:.04em">${risk} risk</span></div><div style="color:var(--text2);margin-bottom:6px">Action: ${esc(pendingDryRunConfirm.intent)}.</div><div style="color:var(--text3);font-size:11px;margin-bottom:8px">Confirmation expires in ${secondsLeft}s.</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" onclick="confirmDryRunChatAction('${token}')" style="border:none;border-radius:10px;padding:7px 12px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer">Confirm run</button><button type="button" onclick="cancelDryRunChatAction('${token}')" style="border:1px solid var(--border);border-radius:10px;padding:7px 12px;background:var(--bg2);color:var(--text);font-weight:700;cursor:pointer">Cancel</button></div></div>`;
     container.appendChild(card);
   }
-  window.confirmDryRunChatAction=function(){
-    if(!pendingDryRunConfirm)return;
+  window.confirmDryRunChatAction=function(token){
+    const valid=isPendingDryRunConfirmValid(token);
+    if(!valid.ok){
+      if(valid.reason==='expired'){
+        clearPendingDryRunConfirm();
+        appendDryRunAssistantNote('This confirmation expired. Please run the request again to generate a fresh preview.');
+      }else if(valid.reason==='stale'){
+        appendDryRunAssistantNote('That confirmation is no longer valid. Use the latest preview card.');
+      }
+      return;
+    }
     const input=document.getElementById('chat-input');
     const text=pendingDryRunConfirm.text;
     window.__chatBypassDryRunText=String(text||'');
-    pendingDryRunConfirm=null;
-    document.getElementById('chat-dryrun-confirm-card')?.remove();
+    clearPendingDryRunConfirm();
     if(input)input.value=text;
     if(typeof window.sendChatMsg==='function')window.sendChatMsg();
   };
-  window.cancelDryRunChatAction=function(){
-    pendingDryRunConfirm=null;
-    document.getElementById('chat-dryrun-confirm-card')?.remove();
-    const messages=document.getElementById('chat-messages');
-    if(messages){
-      const aiMsg=document.createElement('div');
-      aiMsg.innerHTML='<div style="background:#f0f0f0;padding:12px 16px;border-radius:12px;font-size:13px;max-width:80%;color:#333;">Canceled. No changes were made.</div>';
-      messages.appendChild(aiMsg);
-      appendChatHistory('assistant','Canceled. No changes were made.');
-      messages.scrollTop=messages.scrollHeight;
+  window.cancelDryRunChatAction=function(token){
+    const valid=isPendingDryRunConfirmValid(token);
+    clearPendingDryRunConfirm();
+    if(valid.reason==='stale'){
+      appendDryRunAssistantNote('Canceled latest preview.');
+      return;
     }
+    appendDryRunAssistantNote('Canceled. No changes were made.');
   };
   
   // Add chat button after page loads
@@ -4049,7 +4183,6 @@ function checkDueNowBanner(){
     
     const text = input.value.trim();
     if (!text) return;
-    debugChatLog('sweep-1','H1','app.js:4045','chat-send-start',{textPreview:text.slice(0,120),mode:getChatAutonomyMode(),dryRun:isChatDryRunEnabled(),planner:isChatPlannerEnabled(),actionCap:getChatActionCap()});
     input.value = '';
     if (sendBtn) { sendBtn.disabled = true; sendBtn.style.opacity = '0.6'; }
     
@@ -4075,6 +4208,7 @@ function checkDueNowBanner(){
         const bypassDryRun=window.__chatBypassDryRunText&&String(window.__chatBypassDryRunText)===String(text||'');
         window.__chatBypassDryRunText='';
         let plannerTried=false;
+        let plannerBlockedMutation=false;
         if(getChatAutonomyMode()==='agentic'&&isChatPlannerEnabled()){
           plannerTried=true;
           try{
@@ -4082,14 +4216,13 @@ function checkDueNowBanner(){
             const planSummary=summarizeChatPlan(plan);
             const hasPlanActions=Array.isArray(plan?.actions)&&plan.actions.length>0&&planSummary!=='no changes';
             const planRisk=getPlanRiskLevel(plan,text);
-            debugChatLog('sweep-1','H2','app.js:4075','planner-result',{hasPlanActions,planSummary,planRisk,assistantReply:String(plan?.assistantReply||'').slice(0,200),actionCount:Array.isArray(plan?.actions)?plan.actions.length:0,actionTypes:Array.isArray(plan?.actions)?plan.actions.map(a=>String(a?.type||'')).slice(0,12):[]});
             if(hasPlanActions&&!bypassDryRun&&(isChatDryRunEnabled()||planRisk==='high')){
-              pendingDryRunConfirm={text,intent:planSummary,risk:getPlanRiskLevel(plan,text),at:Date.now(),plan};
+              const now=Date.now();
+              pendingDryRunConfirm={text,intent:planSummary,risk:getPlanRiskLevel(plan,text),at:now,token:makeDryRunConfirmToken(),expiresAt:now+DRY_RUN_CONFIRM_TTL_MS,plan};
               const why=isChatDryRunEnabled()?'Dry run is ON.':'High-risk plan requires confirmation.';
               reply=`${why} Planner prepared: ${planSummary}. No data was changed yet.\n\nUse Confirm run below to execute once, or Cancel. Action cap is ${getChatActionCap()} per request.`;
-            }else if(hasPlanActions&&bypassDryRun){
+            }else if(hasPlanActions){
               const run=executeChatPlanActions(plan);
-              debugChatLog('sweep-1','H5','app.js:4084','planner-exec-result',{executed:run?.executed||0,statuses:Array.isArray(run?.statuses)?run.statuses.slice(0,12):[],notes:Array.isArray(run?.notes)?run.notes.slice(0,8):[]});
               if(run.executed){
                 const lines=(run.statuses||[]).slice(0,8).map(function(s){return `${s.status==='applied'?'✅':'⚪'} #${s.index} ${s.type}: ${s.message}`;});
                 reply=`Executed ${run.executed} planned action${run.executed===1?'':'s'}.\n${lines.join('\n')}`;
@@ -4101,6 +4234,7 @@ function checkDueNowBanner(){
               reply=String(plan.assistantReply).trim();
             }else if(mutIntent&&!hasPlanActions){
               const fallbackText=String(plan?.assistantReply||'').trim();
+              plannerBlockedMutation=true;
               reply=fallbackText||`I understood this as "${mutIntent}", but I could not build a safe executable plan. I did not create any task automatically. Try a more explicit instruction (for example: "recategorize active tasks by title and due date").`;
             }
           }catch(_plannerErr){
@@ -4108,10 +4242,10 @@ function checkDueNowBanner(){
           }
         }
         if(!reply&&getChatAutonomyMode()==='agentic'&&isChatDryRunEnabled()&&mutIntent&&!bypassDryRun){
-          debugChatLog('sweep-1','H3','app.js:4099','legacy-dryrun-triggered',{mutIntent,bypassDryRun,plannerTried});
-          pendingDryRunConfirm={text,intent:mutIntent,risk:getChatMutationRiskLevel(mutIntent,text),at:Date.now()};
+          const now=Date.now();
+          pendingDryRunConfirm={text,intent:mutIntent,risk:getChatMutationRiskLevel(mutIntent,text),at:now,token:makeDryRunConfirmToken(),expiresAt:now+DRY_RUN_CONFIRM_TTL_MS};
           reply=`Dry run is ON. I understood this as: ${mutIntent}. No data was changed yet.\n\nUse Confirm run below to execute once, or Cancel. Action cap is ${getChatActionCap()} per request.`;
-        } else if(!reply&&!(plannerTried&&mutIntent))
+        } else if(!reply&&!(plannerTried&&mutIntent)&&!plannerBlockedMutation)
         if (shouldRouteShiftFromChat(text)) {
           const shiftIntent = await fetchServerShiftIntent(text);
           const byIntent = applyShiftIntentFromAi(shiftIntent);
@@ -4145,39 +4279,74 @@ function checkDueNowBanner(){
           } else {
             reply = await fetchServerChatReply(text);
           }
-        } else if (pendingDuplicateDeletePlan && /^(confirm|yes|y|ok|do it|delete them)$/i.test(text)) {
-          const removed = applyDuplicateDeletePlan(pendingDuplicateDeletePlan);
+        } else if (pendingDuplicateDeletePlan && /^(confirm|yes|y|ok|do it|delete them)(\s+[a-z0-9]{4,12})?$/i.test(text)) {
+          const valid=isDeleteConfirmValid(pendingDuplicateDeletePlan,text);
+          if(!valid.ok){
+            pendingDuplicateDeletePlan=null;
+            if(valid.reason==='expired') reply='That delete confirmation expired. Ask again and I will generate a new preview token.';
+            else if(valid.reason==='stale') reply='That token does not match the latest delete preview.';
+            else reply='No pending duplicate-delete confirmation was found.';
+          } else {
+          const removed = applyDuplicateDeletePlan(pendingDuplicateDeletePlan.plan);
           pendingDuplicateDeletePlan = null;
           reply = removed
             ? `Done. I deleted ${removed} duplicate task${removed===1?'':'s'}.`
             : 'I could not find duplicates to delete anymore.';
-        } else if (pendingCompletedDeletePlan && /^(confirm|yes|y|ok|do it|delete them)$/i.test(text)) {
-          const removed = applyGenericDeletePlan(pendingCompletedDeletePlan, 'completed');
+          }
+        } else if (pendingCompletedDeletePlan && /^(confirm|yes|y|ok|do it|delete them)(\s+[a-z0-9]{4,12})?$/i.test(text)) {
+          const valid=isDeleteConfirmValid(pendingCompletedDeletePlan,text);
+          if(!valid.ok){
+            pendingCompletedDeletePlan=null;
+            if(valid.reason==='expired') reply='That delete confirmation expired. Ask again and I will generate a new preview token.';
+            else if(valid.reason==='stale') reply='That token does not match the latest delete preview.';
+            else reply='No pending completed-delete confirmation was found.';
+          } else {
+          const removed = applyGenericDeletePlan(pendingCompletedDeletePlan.plan, 'completed');
           pendingCompletedDeletePlan = null;
           reply = removed
             ? `Done. I deleted ${removed} completed task${removed===1?'':'s'}.`
             : 'I could not find completed tasks to delete anymore.';
-        } else if (pendingOverdueDeletePlan && /^(confirm|yes|y|ok|do it|delete them)$/i.test(text)) {
-          const removed = applyGenericDeletePlan(pendingOverdueDeletePlan, 'overdue');
+          }
+        } else if (pendingOverdueDeletePlan && /^(confirm|yes|y|ok|do it|delete them)(\s+[a-z0-9]{4,12})?$/i.test(text)) {
+          const valid=isDeleteConfirmValid(pendingOverdueDeletePlan,text);
+          if(!valid.ok){
+            pendingOverdueDeletePlan=null;
+            if(valid.reason==='expired') reply='That delete confirmation expired. Ask again and I will generate a new preview token.';
+            else if(valid.reason==='stale') reply='That token does not match the latest delete preview.';
+            else reply='No pending overdue-delete confirmation was found.';
+          } else {
+          const removed = applyGenericDeletePlan(pendingOverdueDeletePlan.plan, 'overdue');
           pendingOverdueDeletePlan = null;
           reply = removed
             ? `Done. I deleted ${removed} overdue task${removed===1?'':'s'}.`
             : 'I could not find overdue tasks to delete anymore.';
-        } else if (pendingDuplicateDeletePlan && /^(cancel|no|n|skip|don'?t delete)$/i.test(text)) {
+          }
+        } else if (pendingDuplicateDeletePlan && /^(cancel|no|n|skip|don'?t delete)(\s+[a-z0-9]{4,12})?$/i.test(text)) {
+          const valid=isDeleteConfirmValid(pendingDuplicateDeletePlan,text);
           pendingDuplicateDeletePlan = null;
-          reply = 'Canceled. I did not delete any tasks.';
-        } else if (pendingCompletedDeletePlan && /^(cancel|no|n|skip|don'?t delete)$/i.test(text)) {
+          reply = valid.ok ? 'Canceled. I did not delete any tasks.' : 'Canceled latest preview.';
+        } else if (pendingCompletedDeletePlan && /^(cancel|no|n|skip|don'?t delete)(\s+[a-z0-9]{4,12})?$/i.test(text)) {
+          const valid=isDeleteConfirmValid(pendingCompletedDeletePlan,text);
           pendingCompletedDeletePlan = null;
-          reply = 'Canceled. I did not delete completed tasks.';
-        } else if (pendingOverdueDeletePlan && /^(cancel|no|n|skip|don'?t delete)$/i.test(text)) {
+          reply = valid.ok ? 'Canceled. I did not delete completed tasks.' : 'Canceled latest preview.';
+        } else if (pendingOverdueDeletePlan && /^(cancel|no|n|skip|don'?t delete)(\s+[a-z0-9]{4,12})?$/i.test(text)) {
+          const valid=isDeleteConfirmValid(pendingOverdueDeletePlan,text);
           pendingOverdueDeletePlan = null;
-          reply = 'Canceled. I did not delete overdue tasks.';
-        } else if (pendingChatTaskDraft && /^(confirm|yes|y|ok|add it|do it)$/i.test(text)) {
-          const dup = findDuplicateTaskCandidate(pendingChatTaskDraft);
+          reply = valid.ok ? 'Canceled. I did not delete overdue tasks.' : 'Canceled latest preview.';
+        } else if (pendingChatTaskDraft && /^(confirm|yes|y|ok|add it|do it)(\s+[a-z0-9_]{3,16})?$/i.test(text)) {
+          const taskDraftState = pendingChatTaskDraft;
+          const valid = validatePendingTaskDraft(taskDraftState, text);
+          if(!valid.ok){
+            clearPendingChatDraft();
+            if(valid.reason==='expired') reply='That task draft confirmation expired. Please ask again and I will re-draft it.';
+            else if(valid.reason==='stale') reply='That token does not match the latest task draft preview.';
+            else reply='No pending task draft was found.';
+          } else {
+          const dup = findDuplicateTaskCandidate(taskDraftState.task);
           if (dup) {
             reply = `I did not add it because a similar open task already exists: "${dup.title}".`;
           } else {
-            const createdFromDraft = addTaskFromChatTask(pendingChatTaskDraft);
+            const createdFromDraft = addTaskFromChatTask(taskDraftState.task);
             if (createdFromDraft) {
               reply = `Added "${createdFromDraft.title}" to your tasks${createdFromDraft.unscheduled ? '.' : ` for ${fmtD(createdFromDraft.dueDate)}.`}`;
             } else {
@@ -4185,35 +4354,42 @@ function checkDueNowBanner(){
             }
           }
           clearPendingChatDraft();
-        } else if (pendingChatTaskDraft && /^(cancel|no|n|skip|don'?t add)$/i.test(text)) {
+          }
+        } else if (pendingChatTaskDraft && /^(cancel|no|n|skip|don'?t add)(\s+[a-z0-9_]{3,16})?$/i.test(text)) {
+          const valid = validatePendingTaskDraft(pendingChatTaskDraft, text);
           clearPendingChatDraft();
-          reply = 'Canceled. I did not add that task.';
+          reply = valid.ok ? 'Canceled. I did not add that task.' : 'Canceled latest task draft.';
         } else if (shouldDeleteDuplicatesFromChat(text)) {
           const plan = buildDuplicateDeletePlan();
           if (!plan.removeIds.length) {
             reply = 'I did not find duplicate active tasks to delete.';
           } else {
-            pendingDuplicateDeletePlan = plan;
-            reply = `I found ${plan.removeIds.length} duplicate task${plan.removeIds.length===1?'':'s'} to remove. Reply "confirm" to delete them or "cancel" to keep everything.`;
+            pendingCompletedDeletePlan = null;
+            pendingOverdueDeletePlan = null;
+            pendingDuplicateDeletePlan = wrapDeleteConfirmPlan(plan);
+            reply = `I found ${plan.removeIds.length} duplicate task${plan.removeIds.length===1?'':'s'} to remove. Reply "confirm ${pendingDuplicateDeletePlan.token}" to delete or "cancel ${pendingDuplicateDeletePlan.token}" to keep everything.`;
           }
         } else if (shouldDeleteCompletedFromChat(text)) {
           const plan = buildCompletedDeletePlan();
           if (!plan.removeIds.length) {
             reply = 'I did not find completed tasks to delete.';
           } else {
-            pendingCompletedDeletePlan = plan;
-            reply = `I found ${plan.removeIds.length} completed task${plan.removeIds.length===1?'':'s'} to delete. Reply "confirm" to continue or "cancel" to keep them.`;
+            pendingDuplicateDeletePlan = null;
+            pendingOverdueDeletePlan = null;
+            pendingCompletedDeletePlan = wrapDeleteConfirmPlan(plan);
+            reply = `I found ${plan.removeIds.length} completed task${plan.removeIds.length===1?'':'s'} to delete. Reply "confirm ${pendingCompletedDeletePlan.token}" to continue or "cancel ${pendingCompletedDeletePlan.token}" to keep them.`;
           }
         } else if (shouldDeleteOverdueFromChat(text)) {
           const plan = buildOverdueDeletePlan();
           if (!plan.removeIds.length) {
             reply = 'I did not find overdue tasks to delete.';
           } else {
-            pendingOverdueDeletePlan = plan;
-            reply = `I found ${plan.removeIds.length} overdue task${plan.removeIds.length===1?'':'s'} to delete. Reply "confirm" to continue or "cancel" to keep them.`;
+            pendingDuplicateDeletePlan = null;
+            pendingCompletedDeletePlan = null;
+            pendingOverdueDeletePlan = wrapDeleteConfirmPlan(plan);
+            reply = `I found ${plan.removeIds.length} overdue task${plan.removeIds.length===1?'':'s'} to delete. Reply "confirm ${pendingOverdueDeletePlan.token}" to continue or "cancel ${pendingOverdueDeletePlan.token}" to keep them.`;
           }
         } else if (shouldCreateTaskFromChat(text)) {
-          debugChatLog('sweep-1','H4','app.js:4189','legacy-create-route-hit',{plannerTried,mutIntent,textPreview:text.slice(0,120)});
           const extractedTask = await fetchServerTaskAction(text);
           const validated = validateChatTaskDraft(extractedTask, text);
           if (!validated.ok) {
@@ -4224,14 +4400,13 @@ function checkDueNowBanner(){
             if (dup) {
               reply = `I did not add it because a similar open task already exists: "${dup.title}".`;
             } else if (validated.needsConfirm) {
-              pendingChatTaskDraft = validated.task;
+              pendingChatTaskDraft = buildPendingTaskDraft(validated.task);
               reply =
                 `I parsed this task: ${taskDraftPreviewLine(validated.task)}.\n` +
-                `${validated.riskyReasons.join(' ')} Reply "confirm" to add it or "cancel" to skip.`;
+                `${validated.riskyReasons.join(' ')} Reply "confirm ${pendingChatTaskDraft.token}" to add it or "cancel ${pendingChatTaskDraft.token}" to skip.`;
             } else {
               const created = addTaskFromChatTask(validated.task);
               if (created) {
-                debugChatLog('sweep-1','H4','app.js:4205','legacy-task-created',{title:String(created?.title||''),category:String(created?.category||''),sourceMode:String(created?.sourceMode||'')});
                 reply = `Added "${created.title}" to your tasks${created.unscheduled ? '.' : ` for ${fmtD(created.dueDate)}.`}`;
               } else {
                 reply = await fetchServerChatReply(text);
