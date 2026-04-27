@@ -2746,6 +2746,7 @@ function checkDueNowBanner(){
 
 (function() {
   const CHAT_STORE_KEY = 'rp3_chat_history_v1';
+  const AI_ACTION_AUDIT_KEY = 'rp3_ai_action_audit_v1';
   let pendingDryRunConfirm = null;
   const DRY_RUN_CONFIRM_TTL_MS = 5 * 60 * 1000;
   function makeDryRunConfirmToken(){
@@ -2781,6 +2782,44 @@ function checkDueNowBanner(){
       return [];
     }
   }
+  function loadAiActionAudit() {
+    try {
+      const raw = localStorage.getItem(AI_ACTION_AUDIT_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
+  }
+  function appendAiActionAudit(entry) {
+    try {
+      const next = [entry, ...loadAiActionAudit()].slice(0, 80);
+      localStorage.setItem(AI_ACTION_AUDIT_KEY, JSON.stringify(next));
+    } catch (_) {}
+  }
+  function renderAiActionLogModal() {
+    const old = document.getElementById('ai-action-log-modal');
+    if (old) old.remove();
+    const list = loadAiActionAudit();
+    const modal = document.createElement('div');
+    modal.id = 'ai-action-log-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:250;display:flex;align-items:center;justify-content:center;padding:14px;';
+    const body = document.createElement('div');
+    body.style.cssText = 'width:min(760px,96vw);max-height:82vh;overflow:auto;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:14px;padding:14px;';
+    const rows = list.map(function (x) {
+      const when = x?.at ? new Date(x.at).toLocaleString() : '-';
+      const prompt = esc(String(x?.prompt || '').slice(0, 220));
+      const summary = esc(String(x?.summary || ''));
+      const lines = Array.isArray(x?.changes) ? x.changes.slice(0, 10).map(function (c) { return `<li>${esc(String(c || ''))}</li>`; }).join('') : '';
+      const more = Array.isArray(x?.changes) && x.changes.length > 10 ? `<div style="color:var(--text3);font-size:11px">+${x.changes.length - 10} more</div>` : '';
+      return `<div style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px;background:var(--bg)"><div style="display:flex;justify-content:space-between;gap:8px"><b>${summary || 'Action run'}</b><span style="color:var(--text3);font-size:11px">${when}</span></div><div style="font-size:12px;color:var(--text2);margin-top:4px">Prompt: ${prompt || '-'}</div>${lines ? `<ul style="margin:8px 0 4px 18px;padding:0;font-size:12px">${lines}</ul>` : '<div style="margin-top:6px;font-size:12px;color:var(--text3)">No detailed changes captured.</div>'}${more}</div>`;
+    }).join('');
+    body.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h3 style="margin:0">AI Action Log</h3><button type="button" onclick="document.getElementById('ai-action-log-modal')?.remove()" style="border:1px solid var(--border);background:var(--bg2);color:var(--text);border-radius:8px;padding:6px 10px;cursor:pointer">Close</button></div>${rows || '<div style="color:var(--text2);font-size:13px">No AI action runs logged yet.</div>'}`;
+    modal.appendChild(body);
+    modal.onclick = function (ev) { if (ev.target === modal) modal.remove(); };
+    document.body.appendChild(modal);
+  }
+  window.openAiActionLogModal = renderAiActionLogModal;
 
   function saveChatHistory(messages) {
     try {
@@ -3136,11 +3175,18 @@ function checkDueNowBanner(){
       }
       if(t==='task.bulk_update'&&Array.isArray(a.updates)){
         let n=0;
+        const titles=[];
         a.updates.slice(0,getChatActionCap()).forEach(function(edit){
           const updated=applyTaskEditFromChat(edit);
-          if(updated)n++;
+          if(updated){n++;if(updated.title)titles.push(String(updated.title));}
         });
-        if(n){executed++;notes.push(`Bulk-updated ${n} task${n===1?'':'s'}`);statuses.push({index:idx+1,type:t,status:'applied',message:`Bulk-updated ${n} task${n===1?'':'s'}`});}
+        if(n){
+          executed++;
+          const sample=titles.slice(0,10);
+          const preview=sample.length?`: ${sample.map(function(s){return `"${s}"`;}).join(', ')}${titles.length>sample.length?' ...':''}`:'';
+          notes.push(`Bulk-updated ${n} task${n===1?'':'s'}`);
+          statuses.push({index:idx+1,type:t,status:'applied',message:`Bulk-updated ${n} task${n===1?'':'s'}${preview}`,changedTitles:titles});
+        }
         else statuses.push({index:idx+1,type:t,status:'skipped',message:'No tasks matched bulk update'});
         return;
       }
@@ -3230,6 +3276,36 @@ function checkDueNowBanner(){
       statuses.push({index:idx+1,type:t,status:'skipped',message:'Unsupported action type'});
     });
     return {executed,notes,statuses};
+  }
+  function collectRunChangedTitles(run){
+    const out=[];
+    const seen=new Set();
+    const statuses=Array.isArray(run?.statuses)?run.statuses:[];
+    statuses.forEach(function(s){
+      if(s?.status!=='applied')return;
+      if(Array.isArray(s.changedTitles)){
+        s.changedTitles.forEach(function(t){
+          const v=String(t||'').trim();
+          if(!v)return;
+          const k=v.toLowerCase();
+          if(seen.has(k))return;
+          seen.add(k);
+          out.push(v);
+        });
+      }else{
+        const msg=String(s?.message||'');
+        const matches=msg.match(/"([^"]+)"/g)||[];
+        matches.forEach(function(raw){
+          const v=String(raw||'').replace(/^"|"$/g,'').trim();
+          if(!v)return;
+          const k=v.toLowerCase();
+          if(seen.has(k))return;
+          seen.add(k);
+          out.push(v);
+        });
+      }
+    });
+    return out;
   }
 
   function shouldCreateShiftFromChat(text) {
@@ -4157,7 +4233,7 @@ function checkDueNowBanner(){
     const modal = document.createElement('div');
     modal.id = 'chat-modal';
     modal.style.cssText = 'position:fixed;bottom:0;right:0;width:90vw;max-width:400px;height:600px;background:#fff;border-left:1px solid #e0e0e0;z-index:200;border-radius:20px 20px 0 0;display:flex;flex-direction:column;box-shadow:0 -10px 40px rgba(0,0,0,0.1)';
-    modal.innerHTML = '<div style="padding:16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--card);"><h2 style="margin:0;font-size:16px;font-weight:600;color:var(--text);">💬 Chat AI</h2><button type="button" onclick="document.getElementById(\'chat-modal\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">✕</button></div><div id="chat-messages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--bg);"></div><div style="padding:16px;border-top:1px solid var(--border);display:flex;gap:8px;background:var(--card);"><input type="text" id="chat-input" placeholder="Ask about your tasks… (Enter to send)" style="flex:1;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;outline:none;font-family:DM Sans,sans-serif;background:var(--bg);color:var(--text);"><button type="button" id="chat-send-btn" onclick="sendChatMsg()" style="min-width:44px;height:40px;border:none;border-radius:10px;background:#2563EB;color:#fff;cursor:pointer;font-size:16px;font-weight:700;">→</button></div>';
+    modal.innerHTML = '<div style="padding:16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--card);"><h2 style="margin:0;font-size:16px;font-weight:600;color:var(--text);">💬 Chat AI</h2><div style="display:flex;gap:8px;align-items:center"><button type="button" onclick="openAiActionLogModal()" style="border:1px solid var(--border);border-radius:8px;padding:4px 8px;background:var(--bg2);color:var(--text);font-size:12px;cursor:pointer">Action log</button><button type="button" onclick="document.getElementById(\'chat-modal\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">✕</button></div></div><div id="chat-messages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--bg);"></div><div style="padding:16px;border-top:1px solid var(--border);display:flex;gap:8px;background:var(--card);"><input type="text" id="chat-input" placeholder="Ask about your tasks… (Enter to send)" style="flex:1;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;outline:none;font-family:DM Sans,sans-serif;background:var(--bg);color:var(--text);"><button type="button" id="chat-send-btn" onclick="sendChatMsg()" style="min-width:44px;height:40px;border:none;border-radius:10px;background:#2563EB;color:#fff;cursor:pointer;font-size:16px;font-weight:700;">→</button></div>';
     modal.style.background = 'var(--card)';
     modal.style.border = '1px solid var(--border)';
     document.body.appendChild(modal);
@@ -4223,9 +4299,19 @@ function checkDueNowBanner(){
               reply=`${why} Planner prepared: ${planSummary}. No data was changed yet.\n\nUse Confirm run below to execute once, or Cancel. Action cap is ${getChatActionCap()} per request.`;
             }else if(hasPlanActions){
               const run=executeChatPlanActions(plan);
+              appendAiActionAudit({
+                at: Date.now(),
+                prompt: text,
+                summary: summarizeChatPlan(plan),
+                changes: (run.statuses || []).map(function(s){ return `${s.status==='applied'?'APPLIED':'SKIPPED'}: ${s.message}`; }),
+              });
               if(run.executed){
                 const lines=(run.statuses||[]).slice(0,8).map(function(s){return `${s.status==='applied'?'✅':'⚪'} #${s.index} ${s.type}: ${s.message}`;});
-                reply=`Executed ${run.executed} planned action${run.executed===1?'':'s'}.\n${lines.join('\n')}`;
+                const changed=collectRunChangedTitles(run);
+                const changedPreview=changed.length
+                  ? `\n\nLast changes:\n- ${changed.slice(0,10).join('\n- ')}${changed.length>10?`\n- +${changed.length-10} more`:''}`
+                  : '';
+                reply=`Executed ${run.executed} planned action${run.executed===1?'':'s'}.\n${lines.join('\n')}${changedPreview}`;
               }else{
                 const lines=(run.statuses||[]).slice(0,8).map(function(s){return `⚪ #${s.index} ${s.type}: ${s.message}`;});
                 reply=lines.length?`No actions were applied.\n${lines.join('\n')}`:String(plan?.assistantReply||'Planner did not find executable changes.');
