@@ -246,6 +246,8 @@ class SyncManager {
   }
 
   async manualSync() {
+    // User-initiated sync should run immediately, even if auto-sync is in backoff.
+    this.nextRetryAt = 0;
     await this.fullSync();
   }
 }
