@@ -3934,6 +3934,7 @@ function checkDueNowBanner(){
   function getChatMutationIntentSummary(text){
     const t=String(text||'');
     if(!t.trim())return '';
+    if(/\b(recategorize|re-categorize|reclassify|sort\s+.*categor|organi[sz]e\s+.*categor)\b/i.test(t))return 'bulk edit tasks';
     if(shouldRouteShiftFromChat(t))return 'apply shift updates';
     if(shouldEditTaskFromChat(t))return 'edit existing task(s)';
     if(shouldCreateTaskFromChat(t))return 'create new task(s)';
@@ -4067,7 +4068,9 @@ function checkDueNowBanner(){
         const mutIntent=getChatMutationIntentSummary(text);
         const bypassDryRun=window.__chatBypassDryRunText&&String(window.__chatBypassDryRunText)===String(text||'');
         window.__chatBypassDryRunText='';
+        let plannerTried=false;
         if(getChatAutonomyMode()==='agentic'&&isChatPlannerEnabled()){
+          plannerTried=true;
           try{
             const plan=await fetchServerChatPlan(text);
             const planSummary=summarizeChatPlan(plan);
@@ -4088,6 +4091,9 @@ function checkDueNowBanner(){
               }
             }else if(!mutIntent&&String(plan?.assistantReply||'').trim()){
               reply=String(plan.assistantReply).trim();
+            }else if(mutIntent&&!hasPlanActions){
+              const fallbackText=String(plan?.assistantReply||'').trim();
+              reply=fallbackText||`I understood this as "${mutIntent}", but I could not build a safe executable plan. I did not create any task automatically. Try a more explicit instruction (for example: "recategorize active tasks by title and due date").`;
             }
           }catch(_plannerErr){
             // Planner is additive in phase 1; legacy routing remains fallback.
@@ -4096,7 +4102,7 @@ function checkDueNowBanner(){
         if(!reply&&getChatAutonomyMode()==='agentic'&&isChatDryRunEnabled()&&mutIntent&&!bypassDryRun){
           pendingDryRunConfirm={text,intent:mutIntent,risk:getChatMutationRiskLevel(mutIntent,text),at:Date.now()};
           reply=`Dry run is ON. I understood this as: ${mutIntent}. No data was changed yet.\n\nUse Confirm run below to execute once, or Cancel. Action cap is ${getChatActionCap()} per request.`;
-        } else if(!reply)
+        } else if(!reply&&!(plannerTried&&mutIntent))
         if (shouldRouteShiftFromChat(text)) {
           const shiftIntent = await fetchServerShiftIntent(text);
           const byIntent = applyShiftIntentFromAi(shiftIntent);
