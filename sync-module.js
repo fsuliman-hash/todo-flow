@@ -10,6 +10,7 @@ class SyncManager {
     this.failCount = 0;
     this.nextRetryAt = 0;
     this.lastError = '';
+    this.intervalMs = 30000;
   }
 
   onSyncChange(callback) {
@@ -224,14 +225,20 @@ class SyncManager {
     await this.syncFromCloud();
   }
 
-  startAutoSync() {
-    if (this.syncInterval) return;
-
+  startAutoSync(intervalMs) {
+    const nextMs = Number(intervalMs);
+    if (Number.isFinite(nextMs) && nextMs >= 5000) {
+      this.intervalMs = nextMs;
+    }
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
+      this.syncInterval = null;
+    }
     this.syncInterval = setInterval(() => {
       if (authManager.isAuthenticated()) {
         this.fullSync().catch(() => {});
       }
-    }, 30000);
+    }, this.intervalMs);
   }
 
   stopAutoSync() {
@@ -249,6 +256,14 @@ class SyncManager {
     // User-initiated sync should run immediately, even if auto-sync is in backoff.
     this.nextRetryAt = 0;
     await this.fullSync();
+  }
+
+  configureAutoSync(enabled, intervalMs) {
+    if (!enabled) {
+      this.stopAutoSync();
+      return;
+    }
+    this.startAutoSync(intervalMs);
   }
 }
 

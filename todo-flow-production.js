@@ -3,6 +3,37 @@
  * Loads after app.js so globals R, sv, render, esc, showToast exist.
  */
 (function () {
+  function getPreferredSyncMode() {
+    try {
+      if (typeof getSyncMode === 'function') return getSyncMode();
+      var raw = typeof S !== 'undefined' && S ? String(S.syncMode || 'auto') : 'auto';
+      return raw === 'manual' ? 'manual' : 'auto';
+    } catch (_) {
+      return 'auto';
+    }
+  }
+  function getPreferredSyncIntervalMs() {
+    try {
+      if (typeof getSyncIntervalSec === 'function') return getSyncIntervalSec() * 1000;
+      var sec = typeof S !== 'undefined' && S ? Number(S.syncIntervalSec || 30) : 30;
+      var allowed = [15, 30, 60, 300, 900, 1800, 3600];
+      return (allowed.indexOf(sec) >= 0 ? sec : 30) * 1000;
+    } catch (_) {
+      return 30000;
+    }
+  }
+  function applyPreferredSyncMode() {
+    if (typeof syncManager === 'undefined') return;
+    var mode = getPreferredSyncMode();
+    var intervalMs = getPreferredSyncIntervalMs();
+    if (typeof syncManager.configureAutoSync === 'function') {
+      syncManager.configureAutoSync(mode !== 'manual', intervalMs);
+      return;
+    }
+    if (mode === 'manual') syncManager.stopAutoSync();
+    else syncManager.startAutoSync(intervalMs);
+  }
+
   function wireTodoFlowSync() {
     if (typeof authManager === 'undefined' || typeof syncManager === 'undefined') return;
     if (window.__tfSyncWired) return;
@@ -10,7 +41,7 @@
 
     authManager.onAuthChange(function (user) {
       if (user) {
-        syncManager.startAutoSync();
+        applyPreferredSyncMode();
         syncManager.fullSync().catch(function () {});
       } else {
         syncManager.stopAutoSync();
@@ -370,6 +401,7 @@
     wireTodoFlowSync();
     initSyncPill();
     updateSyncUi();
+    applyPreferredSyncMode();
     if (!window.__tfAuthSessionSyncUi) {
       window.__tfAuthSessionSyncUi = true;
       window.addEventListener('tf-auth-session-updated', updateSyncUi);

@@ -1,7 +1,7 @@
 // ==================== DATA ====================
 const APP_VERSION = "6.1.3";
 const SK="rp3",STK="rp3_set",HK="rp3_hab",SHK="rp3_shift",TLK="rp3_tlog",TMK="rp3_tmpl",RTK="rp3_rtn",BKP="rp3_backup",TRK="rp3_trash",WTK="rp3_water",DPK="rp3_dispatch";
-const SETTINGS_DEFAULTS={darkMode:false,briefingShown:{},lastSavedAt:null,lastImportAt:null,notifiedHistory:{},aiAssistMode:'manual',aiDailyLimit:40,aiUsage:{day:'',calls:0,byType:{}},chatAutonomyMode:'assistive',chatDryRun:true,chatActionCap:20,chatPlannerEnabled:true,completionAnimSpeed:'normal'};
+const SETTINGS_DEFAULTS={darkMode:false,briefingShown:{},lastSavedAt:null,lastImportAt:null,notifiedHistory:{},aiAssistMode:'manual',aiDailyLimit:40,aiUsage:{day:'',calls:0,byType:{}},chatAutonomyMode:'assistive',chatDryRun:true,chatActionCap:20,chatPlannerEnabled:true,completionAnimSpeed:'normal',syncMode:'auto',syncIntervalSec:30};
 const BASE_CATS=[
   {key:"work",label:"Work",icon:"💼",color:"#3B82F6"},{key:"personal",label:"Personal",icon:"🏠",color:"#10B981"},
   {key:"bills",label:"Bills",icon:"💰",color:"#F59E0B"},{key:"health",label:"Health",icon:"🩺",color:"#EF4444"},
@@ -89,10 +89,44 @@ function getChatAutonomyMode(){const m=String(S?.chatAutonomyMode||'assistive');
 function isChatDryRunEnabled(){return !!S?.chatDryRun}
 function getChatActionCap(){const n=Number(S?.chatActionCap);return Number.isFinite(n)&&n>0?Math.max(1,Math.min(200,n)):20}
 function isChatPlannerEnabled(){return S?.chatPlannerEnabled!==false}
+function getSyncMode(){const m=String(S?.syncMode||'auto').toLowerCase();return m==='manual'?'manual':'auto'}
+function getSyncIntervalSec(){const n=Number(S?.syncIntervalSec);const allowed=[15,30,60,300,900,1800,3600];return allowed.includes(n)?n:30}
 function setChatAutonomyMode(mode){const m=String(mode);if(!['assistive','agentic'].includes(m))return;S.chatAutonomyMode=m;sv(false);render();showToast(`Chat mode: ${m}`)}
 function setChatDryRun(on){S.chatDryRun=!!on;sv(false);render();showToast(`Chat dry run: ${S.chatDryRun?'on':'off'}`)}
 function setChatActionCap(v){const n=Math.max(1,Math.min(200,Number(v)||20));S.chatActionCap=n;sv(false);render();showToast(`Chat action cap: ${n}`)}
 function setChatPlannerEnabled(on){S.chatPlannerEnabled=!!on;sv(false);render();showToast(`Chat planner: ${S.chatPlannerEnabled?'on':'off'}`)}
+function applySyncPreferences(){
+  if(typeof syncManager==='undefined')return;
+  const mode=getSyncMode();
+  const intervalMs=getSyncIntervalSec()*1000;
+  if(typeof syncManager.configureAutoSync==='function'){
+    syncManager.configureAutoSync(mode==='auto',intervalMs);
+  }else if(mode==='manual'){
+    if(typeof syncManager.stopAutoSync==='function')syncManager.stopAutoSync();
+  }else{
+    if(typeof syncManager.startAutoSync==='function')syncManager.startAutoSync(intervalMs);
+  }
+}
+function setSyncMode(mode){
+  const m=String(mode||'').toLowerCase();
+  if(!['auto','manual'].includes(m))return;
+  S.syncMode=m;
+  sv(false);
+  applySyncPreferences();
+  render();
+  showToast(`Sync mode: ${m==='manual'?'manual':'auto'}`);
+}
+function setSyncIntervalSec(sec){
+  const n=Number(sec);
+  const allowed=[15,30,60,300,900,1800,3600];
+  if(!allowed.includes(n))return;
+  S.syncIntervalSec=n;
+  sv(false);
+  applySyncPreferences();
+  render();
+  const label=n>=3600?`${Math.round(n/3600)} hour`:n>=60?`${Math.round(n/60)} min`:`${n}s`;
+  showToast(`Auto-sync interval: ${label}`);
+}
 
 function parseNLP(text){
   const r={title:text,date:null,time:null,cat:"personal",pri:"medium"};const t=text.toLowerCase();const now=new Date();
@@ -2172,9 +2206,12 @@ function rSettings(){
     const u=authManager.getUser();
     const email=esc((u&&u.email)||'Signed in');
     const st=(typeof syncManager!=='undefined')?esc(syncManager.getSyncStatus()):'—';
+    const syncMode=getSyncMode();
+    const syncSec=getSyncIntervalSec();
     const diag=X.syncDiagnostics||{};
     const local=diag.local||null;
     h+=`<div class="list-row"><div class="list-main"><b>${email}</b><span id="tf-settings-sync-status">Cloud: ${st}</span></div></div><div class="safe-row" style="margin-top:10px"><button class="sbtn" type="button" id="tf-btn-sync-now" onclick="typeof tfManualSyncClick==='function'&&tfManualSyncClick(event)">↻ Sync now</button><button class="xbtn" type="button" onclick="runSyncDiagnostics()">🩺 Sync diagnostics</button><button class="xbtn" type="button" id="tf-btn-sign-out" style="background:var(--red);color:#fff;border-color:transparent" onclick="typeof tfSignOutClick==='function'&&tfSignOutClick(event)">Sign out</button></div>`;
+    h+=`<div class="panel" style="margin:10px 0 0"><h3>Sync mode</h3><div class="sdesc" style="margin-bottom:8px">Choose always-on auto sync or manual-only sync.</div><div class="safe-row"><button class="chip-btn${syncMode==='manual'?' on':''}" onclick="setSyncMode('manual')">Manual only</button><button class="chip-btn${syncMode==='auto'?' on':''}" onclick="setSyncMode('auto')">Auto sync</button><select onchange="setSyncIntervalSec(this.value)" ${syncMode==='manual'?'disabled':''}><option value="15"${syncSec===15?' selected':''}>Every 15s</option><option value="30"${syncSec===30?' selected':''}>Every 30s</option><option value="60"${syncSec===60?' selected':''}>Every 1 min</option><option value="300"${syncSec===300?' selected':''}>Every 5 min</option><option value="900"${syncSec===900?' selected':''}>Every 15 min</option><option value="1800"${syncSec===1800?' selected':''}>Every 30 min</option><option value="3600"${syncSec===3600?' selected':''}>Every 1 hour</option></select></div><div class="sdesc" style="margin-top:8px">${syncMode==='manual'?'Auto sync is off. Use "Sync now" when you want to sync.':'Auto sync is active at your selected interval.'}</div></div>`;
     h+=`<div class="panel" style="margin:10px 0 0"><h3>Sync diagnostics</h3>${diag.loading?`<div class="sdesc">Running diagnostics…</div>`:local?`<div class="mini-list"><div class="mini-item">Local raw tasks: <b>${local.rawTotal}</b></div><div class="mini-item">Local visible tasks: <b>${local.visibleTotal}</b></div><div class="mini-item">Local active visible: <b>${local.visibleActive}</b></div><div class="mini-item">Local completed: <b>${local.completed}</b></div><div class="mini-item">Hidden by start date: <b>${local.hiddenByStart}</b></div><div class="mini-item">Auto-prayer hidden from task views: <b>${local.autoPrayerHidden}</b></div><div class="mini-item">Cloud tasks (server): <b>${diag.cloudTotal??'—'}</b></div></div><div class="sdesc" style="margin-top:8px">Last run: ${diag.ranAt?new Date(diag.ranAt).toLocaleString():'Never'}</div>`:`<div class="sdesc">Tap <b>Sync diagnostics</b> to compare local and cloud counts on this device.</div>`}${diag.error?`<div class="sdesc" style="color:var(--red);margin-top:8px">${esc(diag.error)}</div>`:''}</div>`;
   }else{
     h+=`<div class="sdesc" style="margin-bottom:10px">Optional: sign in to sync tasks to Supabase. Tasks stay on this device until you connect.</div><div class="safe-row"><button class="sbtn" type="button" onclick="typeof openTodoFlowAuthModal==='function'&&openTodoFlowAuthModal()">Sign in to sync</button></div>`;
