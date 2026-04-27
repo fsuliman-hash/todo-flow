@@ -1,7 +1,7 @@
 // ==================== DATA ====================
 const APP_VERSION = "6.1.3";
 const SK="rp3",STK="rp3_set",HK="rp3_hab",SHK="rp3_shift",TLK="rp3_tlog",TMK="rp3_tmpl",RTK="rp3_rtn",BKP="rp3_backup",TRK="rp3_trash",WTK="rp3_water",DPK="rp3_dispatch";
-const SETTINGS_DEFAULTS={darkMode:false,briefingShown:{},lastSavedAt:null,lastImportAt:null,notifiedHistory:{},aiAssistMode:'manual',aiDailyLimit:40,aiUsage:{day:'',calls:0,byType:{}},completionAnimSpeed:'normal'};
+const SETTINGS_DEFAULTS={darkMode:false,briefingShown:{},lastSavedAt:null,lastImportAt:null,notifiedHistory:{},aiAssistMode:'manual',aiDailyLimit:40,aiUsage:{day:'',calls:0,byType:{}},chatAutonomyMode:'assistive',chatDryRun:true,chatActionCap:20,chatPlannerEnabled:true,completionAnimSpeed:'normal'};
 const BASE_CATS=[
   {key:"work",label:"Work",icon:"💼",color:"#3B82F6"},{key:"personal",label:"Personal",icon:"🏠",color:"#10B981"},
   {key:"bills",label:"Bills",icon:"💰",color:"#F59E0B"},{key:"health",label:"Health",icon:"🩺",color:"#EF4444"},
@@ -85,6 +85,14 @@ function reserveAiCall(kind='general'){if(getAiMode()==='off')throw new Error('A
 function setAiAssistMode(mode){const m=String(mode);if(!['off','manual','auto'].includes(m))return;S.aiAssistMode=m;sv();render();showToast(`AI mode: ${m}`)}
 function setAiDailyLimit(v){const n=Math.max(1,Math.min(500,Number(v)||40));S.aiDailyLimit=n;sv(false);render();showToast(`AI daily limit: ${n}`)}
 function resetAiUsageToday(){S.aiUsage={day:fmtLD(new Date()),calls:0,byType:{}};sv(false);render();showToast('AI usage reset for today')}
+function getChatAutonomyMode(){const m=String(S?.chatAutonomyMode||'assistive');return ['assistive','agentic'].includes(m)?m:'assistive'}
+function isChatDryRunEnabled(){return !!S?.chatDryRun}
+function getChatActionCap(){const n=Number(S?.chatActionCap);return Number.isFinite(n)&&n>0?Math.max(1,Math.min(200,n)):20}
+function isChatPlannerEnabled(){return S?.chatPlannerEnabled!==false}
+function setChatAutonomyMode(mode){const m=String(mode);if(!['assistive','agentic'].includes(m))return;S.chatAutonomyMode=m;sv(false);render();showToast(`Chat mode: ${m}`)}
+function setChatDryRun(on){S.chatDryRun=!!on;sv(false);render();showToast(`Chat dry run: ${S.chatDryRun?'on':'off'}`)}
+function setChatActionCap(v){const n=Math.max(1,Math.min(200,Number(v)||20));S.chatActionCap=n;sv(false);render();showToast(`Chat action cap: ${n}`)}
+function setChatPlannerEnabled(on){S.chatPlannerEnabled=!!on;sv(false);render();showToast(`Chat planner: ${S.chatPlannerEnabled?'on':'off'}`)}
 
 function parseNLP(text){
   const r={title:text,date:null,time:null,cat:"personal",pri:"medium"};const t=text.toLowerCase();const now=new Date();
@@ -1488,7 +1496,7 @@ function ensureEnhancementStyles(){
   .card.completing{opacity:.45;transform:scale(.985);filter:saturate(.6);transition:opacity var(--complete-fade-ms,.55s) ease,transform var(--complete-fade-ms,.55s) ease,filter var(--complete-fade-ms,.55s) ease}
   .card.completing .ctitle{text-decoration:line-through;text-decoration-thickness:2px}
   .prayer-top,.money-top{padding:10px 14px 0}.safe-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.safe-row>*{margin:0!important}
-  .task-filter-head{padding:8px 14px 0}.task-filter-label{font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}.task-filter-actions{display:flex;gap:8px;flex-wrap:wrap}.filters.task-cat-row{padding-top:6px}.sort-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 14px 0}.sort-row #taskCountLabel{display:flex;align-items:center;min-height:32px}.sort-row select{height:32px;margin:0}.more-group{margin-bottom:18px}.more-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.more-card{padding:12px;border-radius:16px;border:1.5px solid var(--border);background:var(--card);color:var(--text);text-align:left}.more-card-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}.more-card-top b{font-size:13px;color:var(--text)}.more-card span{display:block;font-size:11px;line-height:1.4;color:var(--text2)}.more-emoji{font-size:20px;line-height:1}
+  .task-filter-head{padding:8px 14px 0}.task-filter-label{font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}.task-filter-actions{display:flex;gap:8px;flex-wrap:wrap}.filters.task-cat-row{padding-top:6px}.sort-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 14px 0}.sort-row #taskCountLabel{display:flex;align-items:center;min-height:32px}.sort-row select{height:32px;margin:0}.more-group{margin-bottom:18px}.more-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.more-card{padding:12px;border-radius:16px;border:1.5px solid var(--border);background:var(--card);color:var(--text);text-align:left;overflow:hidden}.more-card-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;min-width:0}.more-card-top b{font-size:13px;color:var(--text);overflow-wrap:anywhere;word-break:break-word}.more-card span{display:block;font-size:11px;line-height:1.4;color:var(--text2);overflow-wrap:anywhere;word-break:break-word}.more-emoji{font-size:20px;line-height:1;flex:0 0 auto}
   .task-link-row{padding:6px 14px 0;display:flex;justify-content:flex-end}.task-link-btn{border:none;background:transparent;color:var(--text3);font-size:12px;font-weight:700;padding:4px 2px;text-decoration:underline;cursor:pointer}.task-link-btn:hover{color:var(--accent)}
   .prod-toolbar{padding:10px 14px 0}.prod-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}.prod-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.prod-kpi{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:12px;cursor:pointer;transition:transform .1s,opacity .1s}.prod-kpi:active{transform:scale(.93);opacity:.7}.prod-kpi b{display:block;font-size:20px;font-weight:900}.prod-kpi span{display:block;font-size:11px;color:var(--text3);margin-top:4px}.coach-card{background:linear-gradient(180deg,var(--card),var(--bg2));border:1.5px solid var(--border);border-radius:18px;padding:14px}.coach-title{font-size:18px;font-weight:900;margin-bottom:6px}.coach-copy{font-size:12px;color:var(--text2);line-height:1.45}.reason-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.reason-chip{padding:6px 8px;border-radius:999px;background:var(--bg2);border:1px solid var(--border);font-size:10px;font-weight:700;color:var(--text2)}.plan-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.plan-card{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:12px}.plan-card h4{font-size:12px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}.queue-line{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border)}.queue-line:last-child{border-bottom:none;padding-bottom:0}.queue-line b{display:block;font-size:13px}.queue-line span{display:block;font-size:11px;color:var(--text3);line-height:1.35}.queue-min{white-space:nowrap;font-size:10px;color:var(--text3);font-weight:800}.lane-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:var(--bg2);border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text2)}.lane-pill.on{border-color:var(--accent);background:var(--abg);color:var(--accent)}.focus-queue{display:flex;flex-direction:column;gap:10px}.focus-step{padding:10px 12px;border-radius:14px;background:var(--bg2);border:1px solid var(--border)}.focus-step b{display:block;font-size:13px}.focus-step span{display:block;font-size:11px;color:var(--text3);margin-top:4px}.coach-banner{margin:10px 14px 0;padding:12px 14px;border-radius:16px;border:1.5px solid var(--border);background:var(--card)}.coach-banner h3{font-size:13px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}.coach-banner p{font-size:12px;color:var(--text2);line-height:1.45;margin:0}.compact-cards .card{margin:0 0 8px}.compact-cards .card:last-child{margin-bottom:0}
   .task-desktop-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}.task-main-col{min-width:0}.task-side-col{display:flex;flex-direction:column;gap:10px}.task-stack{padding-top:8px}.bulk-import-panel .xbtn{flex:1}.bulk-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.bulk-help{font-size:11px;color:var(--text3);line-height:1.45}.bulk-preview{margin-top:12px;max-height:280px;overflow:auto}.bulk-preview-item{padding:10px 12px;border-radius:12px;background:var(--bg2);border:1px solid var(--border);margin-bottom:8px}.bulk-meta{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.bulk-pill{padding:6px 10px;border-radius:999px;background:var(--bg2);border:1px solid var(--border);font-size:10px;font-weight:800;color:var(--text2)}.due-row.is-disabled{opacity:.55;pointer-events:none}
@@ -1779,7 +1787,7 @@ function deleteAllDuplicatesFromFilter(){
 }
 function getFiltered(){
   const dupIds=filter==='duplicates'?getDuplicateTaskIdSet():null;
-  let l=getTaskVisibleList(R).filter(r=>{if(filter==='all')return !r.completed;if(filter==='done')return r.completed;if(filter==='duplicates')return !r.completed&&dupIds&&dupIds.has(r.id);if(filter==='overdue')return !r.completed&&urg(r.dueDate)==='overdue';if(filter==='duesoon')return !r.completed&&['urgent','soon'].includes(urg(r.dueDate));if(filter==='duelater')return !r.completed&&urg(r.dueDate)==='later';return r.category===filter&&!r.completed});
+  let l=getTaskVisibleList(R).filter(r=>{if(filter==='all')return !r.completed;if(filter==='done')return r.completed;if(filter==='recent')return !r.completed&&isRecentlyAddedTask(r);if(filter==='duplicates')return !r.completed&&dupIds&&dupIds.has(r.id);if(filter==='overdue')return !r.completed&&urg(r.dueDate)==='overdue';if(filter==='duesoon')return !r.completed&&['urgent','soon'].includes(urg(r.dueDate));if(filter==='duelater')return !r.completed&&urg(r.dueDate)==='later';return r.category===filter&&!r.completed});
   // Keep duplicate review truthful: if duplicate count says items exist,
   // do not hide them just because startDate is in the future.
   if(filter!=='duplicates'){
@@ -1792,6 +1800,12 @@ function getFiltered(){
   else if(sortBy==='name')l.sort((a,b)=>((b.pinned?1:0)-(a.pinned?1:0))||a.title.localeCompare(b.title));
   else l.sort((a,b)=>((b.pinned?1:0)-(a.pinned?1:0))||((a.order??0)-(b.order??0)));
   return l;
+}
+function isRecentlyAddedTask(r){
+  if(!r||!r.createdAt)return false;
+  const created=new Date(r.createdAt);
+  if(Number.isNaN(created.getTime()))return false;
+  return (Date.now()-created.getTime())<=7*24*60*60*1000;
 }
 function rTaskWorkspaceAside(){
   const laneCounts=CATS.map(c=>({cat:c,count:R.filter(r=>!r.completed&&r.category===c.key).length})).filter(x=>x.count>0).sort((a,b)=>b.count-a.count).slice(0,6);
@@ -1809,8 +1823,9 @@ function rTasks(){
   if(ttActive)h+=rTTActive();
   const recentDone=R.filter(r=>r&&r.completed&&r.completedAt).sort((a,b)=>new Date(b.completedAt)-new Date(a.completedAt)).slice(0,4);
   const dupCount=getDuplicateTaskIdSet().size;
+  const recentAddedCount=getTaskVisibleList(R).filter(r=>!r.completed&&isRecentlyAddedTask(r)).length;
   const filteredTasks=getFiltered();
-  h+=`<div class="task-filter-head"><div class="task-filter-label">Task views</div><div class="task-filter-actions"><button class="chip-btn${filter==='all'?' on':''}" onclick="filter='all';render()">Active</button><button class="chip-btn${filter==='done'?' on':''}" onclick="filter='done';render()">Done</button><button class="chip-btn${filter==='duplicates'?' on':''}" onclick="filter='duplicates';render()">Duplicates${dupCount?` (${dupCount})`:''}</button>${filter==='duplicates'&&dupCount?`<button class="chip-btn" onclick="deleteAllDuplicatesFromFilter()">Delete all duplicates</button>`:''}<button class="chip-btn" onclick="openBulkImport()">Bulk import</button></div></div>`;
+  h+=`<div class="task-filter-head"><div class="task-filter-label">Task views</div><div class="task-filter-actions"><button class="chip-btn${filter==='all'?' on':''}" onclick="filter='all';render()">Active</button><button class="chip-btn${filter==='done'?' on':''}" onclick="filter='done';render()">Done</button><button class="chip-btn${filter==='recent'?' on':''}" onclick="filter='recent';render()">Recently Added${recentAddedCount?` (${recentAddedCount})`:''}</button><button class="chip-btn${filter==='duplicates'?' on':''}" onclick="filter='duplicates';render()">Duplicates${dupCount?` (${dupCount})`:''}</button>${filter==='duplicates'&&dupCount?`<button class="chip-btn" onclick="deleteAllDuplicatesFromFilter()">Delete all duplicates</button>`:''}<button class="chip-btn" onclick="openAiRecategorizeModal()">AI recategorize</button><button class="chip-btn" onclick="openBulkImport()">Bulk import</button></div></div>`;
   if(filter!=='done'){
     h+=`<div class="panel" style="margin:8px 14px 0"><h3>Recently completed</h3>${recentDone.length?recentDone.map(r=>`<div class="list-row"><div class="list-main"><b>${esc(r.title)}</b><span>${r.completedAt?new Date(r.completedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):''}</span></div><button class="cact" onclick="reopenTask('${r.id}')" title="Bring back to active">↩</button></div>`).join(''):'<div class="sdesc">No recently completed tasks yet.</div>'}</div>`;
   }
@@ -2150,8 +2165,8 @@ function rSettings(){
   const perm=('Notification'in window)?Notification.permission:'unsupported';let h=rHdr('Settings','Customize and safeguard');
   h+=`<div class="settings"><div class="sitem"><div><div class="slbl">Dark Mode</div></div><button class="tog${S.darkMode?' on':''}" onclick="toggleDark()"></button></div>`;
   h+=`<div class="sitem"><div><div class="slbl">Notifications</div><div class="sdesc">${perm==='granted'?'Enabled ✅':perm==='denied'?'Blocked in browser settings':'Tap to enable'}</div></div><button class="tog${perm==='granted'?' on':''}" onclick="reqNotif()"></button></div>`;
-  const aiUsage=getAiUsageToday(),aiLimit=getAiDailyLimit(),aiMode=getAiMode();
-  h+=`<div class="panel"><h3>AI controls</h3><div class="sdesc" style="margin-bottom:8px">Mode controls add-form assist and chat AI calls.</div><div class="safe-row"><button class="chip-btn${aiMode==='off'?' on':''}" onclick="setAiAssistMode('off')">Off</button><button class="chip-btn${aiMode==='manual'?' on':''}" onclick="setAiAssistMode('manual')">Manual</button><button class="chip-btn${aiMode==='auto'?' on':''}" onclick="setAiAssistMode('auto')">Auto</button></div><div class="list-row"><div class="list-main"><b>Today usage</b><span>${aiUsage.calls}/${aiLimit} calls · categorize ${aiUsage.byType?.categorize||0} · chat ${aiUsage.byType?.chat||0} · action ${aiUsage.byType?.action||0} · edit ${aiUsage.byType?.edit||0}</span></div></div><div class="safe-row"><button class="xbtn" onclick="setAiDailyLimit(20)">20/day</button><button class="xbtn" onclick="setAiDailyLimit(40)">40/day</button><button class="xbtn" onclick="setAiDailyLimit(80)">80/day</button><button class="xbtn" onclick="resetAiUsageToday()">Reset today</button></div></div>`;
+  const aiUsage=getAiUsageToday(),aiLimit=getAiDailyLimit(),aiMode=getAiMode(),chatMode=getChatAutonomyMode(),chatDry=isChatDryRunEnabled(),chatCap=getChatActionCap();
+  h+=`<div class="panel"><h3>AI controls</h3><div class="sdesc" style="margin-bottom:8px">Mode controls add-form assist and chat AI calls.</div><div class="safe-row"><button class="chip-btn${aiMode==='off'?' on':''}" onclick="setAiAssistMode('off')">Off</button><button class="chip-btn${aiMode==='manual'?' on':''}" onclick="setAiAssistMode('manual')">Manual</button><button class="chip-btn${aiMode==='auto'?' on':''}" onclick="setAiAssistMode('auto')">Auto</button></div><div class="list-row"><div class="list-main"><b>Today usage</b><span>${aiUsage.calls}/${aiLimit} calls · categorize ${aiUsage.byType?.categorize||0} · chat ${aiUsage.byType?.chat||0} · action ${aiUsage.byType?.action||0} · edit ${aiUsage.byType?.edit||0}</span></div></div><div class="safe-row"><button class="xbtn" onclick="setAiDailyLimit(20)">20/day</button><button class="xbtn" onclick="setAiDailyLimit(40)">40/day</button><button class="xbtn" onclick="setAiDailyLimit(80)">80/day</button><button class="xbtn" onclick="resetAiUsageToday()">Reset today</button></div><div class="list-row"><div class="list-main"><b>Chat autonomy</b><span>${chatMode==='agentic'?'Agentic (guarded)':'Assistive'} · ${chatDry?'dry run on':'dry run off'} · cap ${chatCap} action${chatCap===1?'':'s'} per request · planner ${isChatPlannerEnabled()?'on':'off'}</span></div></div><div class="safe-row"><button class="chip-btn${chatMode==='assistive'?' on':''}" onclick="setChatAutonomyMode('assistive')">Assistive</button><button class="chip-btn${chatMode==='agentic'?' on':''}" onclick="setChatAutonomyMode('agentic')">Agentic (guarded)</button><button class="chip-btn${chatDry?' on':''}" onclick="setChatDryRun(!isChatDryRunEnabled())">${chatDry?'Dry run: ON':'Dry run: OFF'}</button><button class="chip-btn${isChatPlannerEnabled()?' on':''}" onclick="setChatPlannerEnabled(!isChatPlannerEnabled())">${isChatPlannerEnabled()?'Planner: ON':'Planner: OFF'}</button><select onchange="setChatActionCap(this.value)"><option value="5"${chatCap===5?' selected':''}>Cap 5</option><option value="10"${chatCap===10?' selected':''}>Cap 10</option><option value="20"${chatCap===20?' selected':''}>Cap 20</option><option value="50"${chatCap===50?' selected':''}>Cap 50</option></select></div></div>`;
   h+=`<div class="panel" id="tf-account-panel"><h3>Account &amp; sync</h3>`;
   if(typeof authManager!=='undefined'&&authManager.isAuthenticated()){
     const u=authManager.getUser();
@@ -2547,6 +2562,105 @@ async function aiSuggestAddFormNow() {
     if (el) el.textContent = 'AI unavailable: ' + (e && e.message ? String(e.message) : 'check server / CLAUDE_API_KEY.');
   }
 }
+function closeAiRecategorizeModal(){document.getElementById('aiRecatM')?.remove();}
+function getAiRecategorizeCandidates(){
+  return getTaskVisibleList(R).filter(r=>r&&!r.completed&&String(r.title||'').trim().length>=3);
+}
+function renderAiRecategorizePreview(){
+  const box=document.getElementById('aiRecatPreview');
+  if(!box)return;
+  const p=window.__aiRecatPreview;
+  if(!p){
+    box.innerHTML='<div class="sdesc">Click <b>Run preview</b> to let AI suggest category changes before applying.</div>';
+    return;
+  }
+  const lines=[];
+  lines.push(`<div class="mini-item">Scanned: ${p.scanned} task${p.scanned===1?'':'s'}${p.capHit?' (capped to protect AI usage)':''}</div>`);
+  lines.push(`<div class="mini-item">Suggested changes: ${p.changes.length}</div>`);
+  if(p.error)lines.push(`<div class="mini-item" style="color:var(--red)">Stopped: ${esc(p.error)}</div>`);
+  if(!p.changes.length){
+    lines.push('<div class="sdesc" style="margin-top:8px">No category changes suggested for the scanned tasks.</div>');
+    box.innerHTML=lines.join('');
+    return;
+  }
+  const rows=p.changes.slice(0,40).map(ch=>{
+    const from=getCategory(ch.from),to=getCategory(ch.to);
+    return `<div class="list-row"><div class="list-main"><b>${esc(ch.title)}</b><span>${esc(from.icon)} ${esc(from.label)} → ${esc(to.icon)} ${esc(to.label)}${ch.reason?` · ${esc(ch.reason)}`:''}</span></div></div>`;
+  }).join('');
+  const more=p.changes.length>40?`<div class="sdesc">Showing first 40 of ${p.changes.length} suggested changes.</div>`:'';
+  box.innerHTML=lines.join('')+`<div style="margin-top:8px">${rows}${more}</div>`;
+}
+function openAiRecategorizeModal(){
+  const existing=document.getElementById('aiRecatM');
+  if(existing)existing.remove();
+  const ov=document.createElement('div');
+  ov.className='mo';
+  ov.id='aiRecatM';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML=`<div class="mo-in" onclick="event.stopPropagation()"><div class="mo-h"></div><h3>AI recategorize tasks</h3><div class="sdesc">Runs AI on active tasks and previews category changes before you apply them.</div><div class="frow" style="margin-top:10px"><label class="flbl" style="margin:0;font-size:12px;align-self:center">Scan cap</label><select id="aiRecatCap"><option value="25">25 tasks</option><option value="50">50 tasks</option><option value="120" selected>120 tasks</option><option value="all">All tasks</option></select></div><div id="aiRecatPreview" class="panel" style="margin:10px 0 0;max-height:55vh;overflow:auto"></div><div class="safe-row" style="margin-top:12px"><button class="xbtn" id="aiRecatRunBtn" onclick="runAiRecategorizePreview()">Run preview</button><button class="sbtn" id="aiRecatApplyBtn" onclick="applyAiRecategorizePreview()" disabled style="opacity:.55">Apply changes</button><button class="xbtn" onclick="closeAiRecategorizeModal()">Close</button></div></div>`;
+  document.body.appendChild(ov);
+  renderAiRecategorizePreview();
+}
+async function runAiRecategorizePreview(){
+  if(getAiMode()==='off'){showToast('AI assist is off in Settings');return;}
+  const runBtn=document.getElementById('aiRecatRunBtn');
+  const applyBtn=document.getElementById('aiRecatApplyBtn');
+  if(runBtn){runBtn.disabled=true;runBtn.style.opacity='.55';runBtn.textContent='Running…';}
+  if(applyBtn){applyBtn.disabled=true;applyBtn.style.opacity='.55';}
+  const candidates=getAiRecategorizeCandidates();
+  const capSel=String(document.getElementById('aiRecatCap')?.value||'120');
+  const capLimit=capSel==='all'?candidates.length:Math.max(1,Number(capSel)||120);
+  const cap=Math.min(candidates.length,capLimit);
+  const changes=[];
+  let scanned=0,errMsg='';
+  const categories=CATS.map(c=>({key:c.key,label:c.label}));
+  const base=(typeof window!=='undefined'&&window.__TF_API_BASE__)?String(window.__TF_API_BASE__).trim().replace(/\/+$/,''):'';
+  const url=(base||'')+'/api/chat-categorize';
+  for(let i=0;i<cap;i++){
+    const task=candidates[i];
+    try{
+      reserveAiCall('categorize');
+      const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:task.title,notes:task.notes||'',categories,todayHint:fmtLD(new Date())})});
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok)throw new Error(String(data?.error||data?.message||('HTTP '+res.status)));
+      const nextCat=String(data?.category||'').trim();
+      if(nextCat&&nextCat!==task.category&&CATS.some(c=>c.key===nextCat)){
+        changes.push({id:task.id,title:task.title,from:task.category,to:nextCat,reason:String(data?.reason||'').slice(0,120)});
+      }
+    }catch(e){
+      errMsg=String(e?.message||e||'AI request failed');
+      break;
+    }
+    scanned++;
+    const box=document.getElementById('aiRecatPreview');
+    if(box&&scanned%10===0){box.innerHTML=`<div class="sdesc">Scanning tasks with AI… ${scanned}/${cap}</div>`;}
+  }
+  window.__aiRecatPreview={changes,scanned,error:errMsg,capHit:candidates.length>cap,ranAt:new Date().toISOString()};
+  renderAiRecategorizePreview();
+  if(applyBtn){
+    const canApply=changes.length>0;
+    applyBtn.disabled=!canApply;
+    applyBtn.style.opacity=canApply?'1':'.55';
+  }
+  if(runBtn){runBtn.disabled=false;runBtn.style.opacity='1';runBtn.textContent='Run preview';}
+}
+function applyAiRecategorizePreview(){
+  const p=window.__aiRecatPreview;
+  if(!p||!Array.isArray(p.changes)||!p.changes.length){showToast('No changes to apply');return;}
+  const backup=R.slice();
+  let changed=0;
+  p.changes.forEach(ch=>{
+    const task=R.find(r=>r&&r.id===ch.id);
+    if(!task)return;
+    if(task.category===ch.to)return;
+    task.category=ch.to;
+    changed++;
+  });
+  if(!changed){showToast('No changes applied');return;}
+  _undoCallback=()=>{R=backup;sv();render();};
+  sv();render();showToast(`Saved ${changed} category change${changed===1?'':'s'}`,'Undo');
+  closeAiRecategorizeModal();
+}
 
 function showForm(){
   const r=editId?R.find(x=>x.id===editId):null;const noDue=!!(r?.unscheduled||isUnscheduledISO(r?.dueDate));const d=noDue?new Date(Date.now()+3600000):(r?new Date(r.dueDate):new Date(Date.now()+3600000));const dd=fmtLD(d),tt=fmtLT(d),sd=r?.startDate?fmtLD(new Date(r.startDate)):'',st=r?.startDate?fmtLT(new Date(r.startDate)):'';const tags=(r?.tags||[]).join(', '),subs=(r?.subtasks||[]),dep=r?.dependsOn||'',amount=Number(r?.amount||0)||'',bundle=r?.bundle||'',childId=r?.childId||'';
@@ -2632,6 +2746,7 @@ function checkDueNowBanner(){
 
 (function() {
   const CHAT_STORE_KEY = 'rp3_chat_history_v1';
+  let pendingDryRunConfirm = null;
 
   function loadChatHistory() {
     try {
@@ -2848,6 +2963,200 @@ function checkDueNowBanner(){
     }
     return data?.intent || null;
   }
+  async function fetchServerChatPlan(text) {
+    reserveAiCall('chat');
+    const tasks =
+      typeof R === 'undefined' || !Array.isArray(R)
+        ? []
+        : R.filter(function (r) { return r && !r.completed; }).slice(0, 80).map(function (r) {
+            const undated = !!(r.unscheduled || (typeof isUnscheduledISO === 'function' && isUnscheduledISO(r.dueDate)));
+            return {
+              id: r.id,
+              title: r.title,
+              priority: r.priority,
+              category: r.category,
+              dueDate: undated ? '' : r.dueDate,
+              unscheduled: undated,
+              completed: !!r.completed,
+            };
+          });
+    const shiftSnapshot =
+      Array.isArray(shifts)
+        ? shifts
+            .slice()
+            .sort(sortShiftEntries)
+            .slice(-60)
+            .map(function (s) {
+              return {
+                date: String(s && s.date || ''),
+                type: String(s && s.type || ''),
+                start: String(s && s.start || ''),
+                end: String(s && s.end || ''),
+              };
+            })
+        : [];
+    const moduleSummary={
+      expensesCount:Array.isArray(X?.expenses)?X.expenses.length:0,
+      homeworkCount:Array.isArray(X?.homework)?X.homework.length:0,
+      medicationLogCount:Array.isArray(X?.medicationLogs)?X.medicationLogs.length:0,
+      childrenCount:Array.isArray(X?.children)?X.children.length:0,
+    };
+    const base = chatApiBase();
+    const url = (base || '') + '/api/chat-plan';
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        context: buildTaskActionContext(),
+        tasks,
+        shifts: shiftSnapshot,
+        moduleSummary,
+        todayHint: chatTodayHint(),
+        actionCap: getChatActionCap(),
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const err = data && (data.error || data.message) ? String(data.error || data.message) : ('HTTP ' + response.status);
+      throw new Error(err);
+    }
+    return data?.plan || { actions: [] };
+  }
+  function summarizeChatPlan(plan){
+    const actions=Array.isArray(plan?.actions)?plan.actions:[];
+    if(!actions.length)return 'no changes';
+    const labels=actions.slice(0,6).map(function(a){
+      const t=String(a?.type||'').toLowerCase();
+      if(t==='task.create')return 'create task';
+      if(t==='task.update')return 'edit task';
+      if(t==='task.bulk_update')return 'bulk edit tasks';
+      if(t==='task.delete_duplicates')return 'delete duplicates';
+      if(t==='task.delete_completed')return 'delete completed';
+      if(t==='task.delete_overdue')return 'delete overdue';
+      if(t==='shift.intent')return 'update shifts';
+      if(t==='settings.update')return 'update settings';
+      return t||'change';
+    });
+    return `${labels.join(', ')}${actions.length>6?` +${actions.length-6} more`:''}`;
+  }
+  function executeChatPlanActions(plan){
+    const actions=(Array.isArray(plan?.actions)?plan.actions:[]).slice(0,getChatActionCap());
+    if(!actions.length)return {executed:0,notes:['No executable actions'],statuses:[]};
+    const notes=[];
+    const statuses=[];
+    let executed=0;
+    actions.forEach(function(a,idx){
+      const t=String(a?.type||'').toLowerCase();
+      if(t==='task.create'&&a.task){
+        const validated=validateChatTaskDraft(a.task,'');
+        if(validated?.ok&&addTaskFromChatTask(validated.task)){executed++;notes.push(`Added "${validated.task.title}"`);statuses.push({index:idx+1,type:t,status:'applied',message:`Added "${validated.task.title}"`});}
+        else statuses.push({index:idx+1,type:t,status:'skipped',message:'Validation failed or duplicate detected'});
+        return;
+      }
+      if(t==='task.update'&&a.edit&&a.edit.action==='update'){
+        const updated=applyTaskEditFromChat(a.edit);
+        if(updated){executed++;notes.push(`Updated "${updated.title}"`);statuses.push({index:idx+1,type:t,status:'applied',message:`Updated "${updated.title}"`});}
+        else statuses.push({index:idx+1,type:t,status:'skipped',message:'No matching task found'});
+        return;
+      }
+      if(t==='task.bulk_update'&&Array.isArray(a.updates)){
+        let n=0;
+        a.updates.slice(0,getChatActionCap()).forEach(function(edit){
+          const updated=applyTaskEditFromChat(edit);
+          if(updated)n++;
+        });
+        if(n){executed++;notes.push(`Bulk-updated ${n} task${n===1?'':'s'}`);statuses.push({index:idx+1,type:t,status:'applied',message:`Bulk-updated ${n} task${n===1?'':'s'}`});}
+        else statuses.push({index:idx+1,type:t,status:'skipped',message:'No tasks matched bulk update'});
+        return;
+      }
+      if(t==='task.delete_duplicates'){
+        const n=applyDuplicateDeletePlan(buildDuplicateDeletePlan());
+        if(n){executed++;notes.push(`Deleted ${n} duplicate task${n===1?'':'s'}`);statuses.push({index:idx+1,type:t,status:'applied',message:`Deleted ${n} duplicate task${n===1?'':'s'}`});}
+        else statuses.push({index:idx+1,type:t,status:'skipped',message:'No duplicates found'});
+        return;
+      }
+      if(t==='task.delete_completed'){
+        const n=applyGenericDeletePlan(buildCompletedDeletePlan(),'completed');
+        if(n){executed++;notes.push(`Deleted ${n} completed task${n===1?'':'s'}`);statuses.push({index:idx+1,type:t,status:'applied',message:`Deleted ${n} completed task${n===1?'':'s'}`});}
+        else statuses.push({index:idx+1,type:t,status:'skipped',message:'No completed tasks found'});
+        return;
+      }
+      if(t==='task.delete_overdue'){
+        const n=applyGenericDeletePlan(buildOverdueDeletePlan(),'overdue');
+        if(n){executed++;notes.push(`Deleted ${n} overdue task${n===1?'':'s'}`);statuses.push({index:idx+1,type:t,status:'applied',message:`Deleted ${n} overdue task${n===1?'':'s'}`});}
+        else statuses.push({index:idx+1,type:t,status:'skipped',message:'No overdue tasks found'});
+        return;
+      }
+      if(t==='shift.intent'&&a.intent){
+        const res=applyShiftIntentFromAi(a.intent);
+        if(res?.applied){executed++;if(res.reply)notes.push(res.reply);statuses.push({index:idx+1,type:t,status:'applied',message:String(res.reply||'Shift intent applied')});}
+        else statuses.push({index:idx+1,type:t,status:'skipped',message:'Shift intent not applied'});
+        return;
+      }
+      if(t==='settings.update'&&a.updates&&typeof a.updates==='object'){
+        let touched=0;
+        if(typeof a.updates.chatDryRun==='boolean'){S.chatDryRun=!!a.updates.chatDryRun;touched++;}
+        if(Number.isFinite(Number(a.updates.chatActionCap))){S.chatActionCap=Math.max(1,Math.min(200,Number(a.updates.chatActionCap)));touched++;}
+        if(typeof a.updates.chatAutonomyMode==='string'&&['assistive','agentic'].includes(String(a.updates.chatAutonomyMode))){S.chatAutonomyMode=String(a.updates.chatAutonomyMode);touched++;}
+        if(touched){sv(false);render();executed++;notes.push(`Updated ${touched} chat setting${touched===1?'':'s'}`);statuses.push({index:idx+1,type:t,status:'applied',message:`Updated ${touched} chat setting${touched===1?'':'s'}`});}
+        else statuses.push({index:idx+1,type:t,status:'skipped',message:'No allowlisted settings in request'});
+        return;
+      }
+      if(t==='money.expense_add'&&a.expense&&typeof a.expense==='object'){
+        const title=String(a.expense.title||'').trim();
+        if(!title){statuses.push({index:idx+1,type:t,status:'skipped',message:'Missing expense title'});return;}
+        const amount=Number(a.expense.amount);
+        X.expenses=Array.isArray(X.expenses)?X.expenses:[];
+        X.expenses.unshift({
+          id:gid(),
+          title,
+          amount:Number.isFinite(amount)?amount:0,
+          category:String(a.expense.category||'Other').trim()||'Other',
+          date:(a.expense.date&&String(a.expense.date).trim())?new Date(String(a.expense.date)).toISOString():new Date().toISOString(),
+        });
+        sv(false);render();executed++;notes.push(`Logged expense "${title}"`);statuses.push({index:idx+1,type:t,status:'applied',message:`Logged expense "${title}"`});
+        return;
+      }
+      if(t==='kids.homework_add'&&a.homework&&typeof a.homework==='object'){
+        const title=String(a.homework.title||'').trim();
+        if(!title){statuses.push({index:idx+1,type:t,status:'skipped',message:'Missing homework title'});return;}
+        const kids=Array.isArray(X.children)?X.children:[];
+        const childId=String(a.homework.childId||'').trim();
+        const resolvedChild=kids.some(c=>String(c.id)===childId)?childId:(kids[0]?.id||'');
+        X.homework=Array.isArray(X.homework)?X.homework:[];
+        X.homework.unshift({
+          id:gid(),
+          childId:resolvedChild,
+          subject:String(a.homework.subject||'General').trim()||'General',
+          title,
+          grade:String(a.homework.grade||'').trim(),
+          date:(a.homework.date&&String(a.homework.date).trim())?new Date(String(a.homework.date)).toISOString():new Date().toISOString(),
+          done:false,
+        });
+        sv(false);render();executed++;notes.push(`Added homework "${title}"`);statuses.push({index:idx+1,type:t,status:'applied',message:`Added homework "${title}"`});
+        return;
+      }
+      if(t==='health.medication_log'&&a.medicationLog&&typeof a.medicationLog==='object'){
+        const meds=Array.isArray(X.medications)?X.medications:[];
+        const medId=String(a.medicationLog.medId||'').trim();
+        const resolvedMed=meds.some(m=>String(m.id)===medId)?medId:(meds[0]?.id||'');
+        if(!resolvedMed){statuses.push({index:idx+1,type:t,status:'skipped',message:'No medication profile available'});return;}
+        X.medicationLogs=Array.isArray(X.medicationLogs)?X.medicationLogs:[];
+        X.medicationLogs.unshift({
+          id:gid(),
+          medId:resolvedMed,
+          date:(a.medicationLog.date&&String(a.medicationLog.date).trim())?new Date(String(a.medicationLog.date)).toISOString():new Date().toISOString(),
+          dose:String(a.medicationLog.dose||'').trim(),
+          childId:String(a.medicationLog.childId||'').trim(),
+        });
+        sv(false);render();executed++;notes.push('Logged medication dose');statuses.push({index:idx+1,type:t,status:'applied',message:'Logged medication dose'});
+        return;
+      }
+      statuses.push({index:idx+1,type:t,status:'skipped',message:'Unsupported action type'});
+    });
+    return {executed,notes,statuses};
+  }
 
   function shouldCreateShiftFromChat(text) {
     const t = String(text || '').toLowerCase();
@@ -2943,23 +3252,31 @@ function checkDueNowBanner(){
 
     if (action === 'delete_week') {
       const before = shifts.length;
+      const cap = getChatActionCap();
+      let removed = 0;
       shifts = (Array.isArray(shifts) ? shifts : []).filter(function (s) {
         const ds = String(s && s.date || '');
-        return !(ds >= range.startKey && ds <= range.endKey);
+        const inWeek = ds >= range.startKey && ds <= range.endKey;
+        if (!inWeek) return true;
+        if (removed >= cap) return true;
+        removed += 1;
+        return false;
       });
-      const removed = before - shifts.length;
+      const clipped = (before - shifts.length) > cap || removed >= cap;
       sv();
       render();
-      return { applied: true, reply: removed ? `Deleted ${removed} shift${removed === 1 ? '' : 's'} for ${weekRef === 'this_week' ? 'this week' : 'next week'}.` : `No shifts found for ${weekRef === 'this_week' ? 'this week' : 'next week'}.` };
+      return { applied: true, reply: removed ? `Deleted ${removed} shift${removed === 1 ? '' : 's'} for ${weekRef === 'this_week' ? 'this week' : 'next week'}${clipped ? ` (capped to ${cap})` : ''}.` : `No shifts found for ${weekRef === 'this_week' ? 'this week' : 'next week'}.` };
     }
 
     if (action === 'move_week') {
       const delta = Math.max(-2, Math.min(2, parseInt(String(intent.days || 0), 10) || 0));
       if (!delta) return { applied: false };
+      const cap = getChatActionCap();
       let moved = 0;
       shifts = (Array.isArray(shifts) ? shifts : []).map(function (s) {
         if (!s || !s.date) return s;
         if (s.date < range.startKey || s.date > range.endKey) return s;
+        if (moved >= cap) return s;
         const d = new Date(s.date + 'T00:00:00');
         if (Number.isNaN(d.getTime())) return s;
         d.setDate(d.getDate() + delta);
@@ -2969,7 +3286,7 @@ function checkDueNowBanner(){
       shifts = shifts.sort(sortShiftEntries);
       sv();
       render();
-      return { applied: true, reply: moved ? `Moved ${moved} shift${moved === 1 ? '' : 's'} ${delta < 0 ? 'earlier' : 'later'} by ${Math.abs(delta)} day${Math.abs(delta) === 1 ? '' : 's'}.` : 'No shifts found to move.' };
+      return { applied: true, reply: moved ? `Moved ${moved} shift${moved === 1 ? '' : 's'} ${delta < 0 ? 'earlier' : 'later'} by ${Math.abs(delta)} day${Math.abs(delta) === 1 ? '' : 's'}${moved >= cap ? ` (capped to ${cap})` : ''}.` : 'No shifts found to move.' };
     }
 
     if (action === 'set_day_off') {
@@ -3004,6 +3321,7 @@ function checkDueNowBanner(){
     if (action === 'replace_week_schedule') {
       const entries = Array.isArray(intent.entries) ? intent.entries : [];
       if (!entries.length) return { applied: false };
+      const cap = getChatActionCap();
       const mapped = entries
         .map(function (e) {
           const day = String(e && e.day || '').toLowerCase();
@@ -3024,15 +3342,17 @@ function checkDueNowBanner(){
         })
         .filter(Boolean);
       if (!mapped.length) return { applied: false };
+      const clipped = mapped.length > cap;
+      const scoped = mapped.slice(0, cap);
       shifts = (Array.isArray(shifts) ? shifts : []).filter(function (s) {
         const ds = String(s && s.date || '');
         return !(ds >= range.startKey && ds <= range.endKey);
       });
-      mapped.forEach(function (m) { shifts.push(m); });
+      scoped.forEach(function (m) { shifts.push(m); });
       shifts = shifts.sort(sortShiftEntries);
       sv();
       render();
-      return { applied: true, reply: `Replaced ${weekRef === 'this_week' ? 'this week' : 'next week'} schedule with ${mapped.length} shift entries.` };
+      return { applied: true, reply: `Replaced ${weekRef === 'this_week' ? 'this week' : 'next week'} schedule with ${scoped.length} shift entr${scoped.length===1?'y':'ies'}${clipped ? ` (capped to ${cap})` : ''}.` };
     }
 
     return { applied: false };
@@ -3051,15 +3371,21 @@ function checkDueNowBanner(){
       /\bnext week\b/.test(t)
     ) {
       const before = shifts.length;
+      const cap = getChatActionCap();
+      let removed = 0;
       shifts = (Array.isArray(shifts) ? shifts : []).filter(function (s) {
         const ds = String(s && s.date || '');
-        return !(ds >= nextWeek.startKey && ds <= nextWeek.endKey);
+        const inWeek = ds >= nextWeek.startKey && ds <= nextWeek.endKey;
+        if (!inWeek) return true;
+        if (removed >= cap) return true;
+        removed += 1;
+        return false;
       });
-      const removed = before - shifts.length;
+      const clipped = (before - shifts.length) > cap || removed >= cap;
       if (removed > 0) {
         sv();
         render();
-        return { applied: true, reply: `Deleted ${removed} shift${removed === 1 ? '' : 's'} for next week.` };
+        return { applied: true, reply: `Deleted ${removed} shift${removed === 1 ? '' : 's'} for next week${clipped ? ` (capped to ${cap})` : ''}.` };
       }
       return { applied: true, reply: 'No shifts found for next week to delete.' };
     }
@@ -3069,10 +3395,12 @@ function checkDueNowBanner(){
       /\bone day\b/.test(t) &&
       /\b(up|earlier|back)\b/.test(t)
     ) {
+      const cap = getChatActionCap();
       let moved = 0;
       shifts = (Array.isArray(shifts) ? shifts : []).map(function (s) {
         if (!s || !s.date) return s;
         if (s.date < nextWeek.startKey || s.date > nextWeek.endKey) return s;
+        if (moved >= cap) return s;
         const d = new Date(s.date + 'T00:00:00');
         if (Number.isNaN(d.getTime())) return s;
         d.setDate(d.getDate() - 1);
@@ -3083,7 +3411,7 @@ function checkDueNowBanner(){
         shifts = shifts.sort(sortShiftEntries);
         sv();
         render();
-        return { applied: true, reply: `Moved ${moved} next-week shift${moved === 1 ? '' : 's'} one day earlier.` };
+        return { applied: true, reply: `Moved ${moved} next-week shift${moved === 1 ? '' : 's'} one day earlier${moved >= cap ? ` (capped to ${cap})` : ''}.` };
       }
       return { applied: true, reply: 'No next-week shifts found to move.' };
     }
@@ -3151,9 +3479,12 @@ function checkDueNowBanner(){
 
     let added = 0;
     let updated = 0;
+    const cap = getChatActionCap();
+    const clipped = deduped.length > cap;
+    const scoped = deduped.slice(0, cap);
     // For weekly schedule plans, replace the date window to avoid stale/duplicated days.
-    if (deduped.length >= 4) {
-      const dates = deduped.map(function (e) { return e.date; }).sort();
+    if (scoped.length >= 4 && !clipped) {
+      const dates = scoped.map(function (e) { return e.date; }).sort();
       const minDate = dates[0];
       const maxDate = dates[dates.length - 1];
       shifts = (Array.isArray(shifts) ? shifts : []).filter(function (s) {
@@ -3162,7 +3493,7 @@ function checkDueNowBanner(){
       });
     }
 
-    deduped.forEach(function (e) {
+    scoped.forEach(function (e) {
       const date = e.date;
       const type = e.type;
       const start = e.start;
@@ -3190,7 +3521,7 @@ function checkDueNowBanner(){
       sv();
       render();
     }
-    return { added, updated };
+    return { added, updated, clipped, cap };
   }
 
   function shouldEditTaskFromChat(text) {
@@ -3473,7 +3804,9 @@ function checkDueNowBanner(){
   function applyDuplicateDeletePlan(plan) {
     if (!plan || !Array.isArray(plan.removeIds) || !plan.removeIds.length) return 0;
     const backup = R.slice();
-    const toRemove = new Set(plan.removeIds.map(String));
+    const cap=getChatActionCap();
+    const scopedIds=plan.removeIds.slice(0,cap);
+    const toRemove = new Set(scopedIds.map(String));
     const removedTasks = [];
     R.forEach(function (r) {
       if (r && toRemove.has(String(r.id))) removedTasks.push(r);
@@ -3498,7 +3831,10 @@ function checkDueNowBanner(){
     };
     sv();
     render();
-    if (typeof showToast === 'function') showToast(`Deleted ${removedTasks.length} duplicate task${removedTasks.length===1?'':'s'}`, 'Undo');
+    if (typeof showToast === 'function') {
+      const clipped=plan.removeIds.length>scopedIds.length?` (capped to ${cap})`:'';
+      showToast(`Deleted ${removedTasks.length} duplicate task${removedTasks.length===1?'':'s'}${clipped}`, 'Undo');
+    }
     return removedTasks.length;
   }
 
@@ -3519,7 +3855,9 @@ function checkDueNowBanner(){
   function applyGenericDeletePlan(plan, label) {
     if (!plan || !Array.isArray(plan.removeIds) || !plan.removeIds.length) return 0;
     const backup = R.slice();
-    const toRemove = new Set(plan.removeIds.map(String));
+    const cap=getChatActionCap();
+    const scopedIds=plan.removeIds.slice(0,cap);
+    const toRemove = new Set(scopedIds.map(String));
     const removedTasks = [];
     R.forEach(function (r) {
       if (r && toRemove.has(String(r.id))) removedTasks.push(r);
@@ -3544,7 +3882,8 @@ function checkDueNowBanner(){
     sv();
     render();
     if (typeof showToast === 'function') {
-      showToast(`Deleted ${removedTasks.length} ${label} task${removedTasks.length===1?'':'s'}`, 'Undo');
+      const clipped=plan.removeIds.length>scopedIds.length?` (capped to ${cap})`:'';
+      showToast(`Deleted ${removedTasks.length} ${label} task${removedTasks.length===1?'':'s'}${clipped}`, 'Undo');
     }
     return removedTasks.length;
   }
@@ -3592,6 +3931,75 @@ function checkDueNowBanner(){
     const due = parsed.date ? ` for ${parsed.date}${parsed.time ? ` at ${parsed.time}` : ''}` : '';
     return `I can draft it as "${parsed.title}" in ${parsed.cat} with ${parsed.pri} priority${due}. Please confirm/save it in the app.`;
   }
+  function getChatMutationIntentSummary(text){
+    const t=String(text||'');
+    if(!t.trim())return '';
+    if(shouldRouteShiftFromChat(t))return 'apply shift updates';
+    if(shouldEditTaskFromChat(t))return 'edit existing task(s)';
+    if(shouldCreateTaskFromChat(t))return 'create new task(s)';
+    if(detectDuplicateDeleteCommand(t))return 'delete duplicate tasks';
+    if(detectCompletedDeleteCommand(t))return 'delete completed tasks';
+    if(detectOverdueDeleteCommand(t))return 'delete overdue tasks';
+    if(window.__aiRecatPreview?.changes?.length)return 'apply AI recategorization';
+    return '';
+  }
+  function getChatMutationRiskLevel(intent,text){
+    const i=String(intent||'').toLowerCase();
+    const t=String(text||'').toLowerCase();
+    if(i.includes('delete')||i.includes('replace')||/\bdelete|remove|clear|wipe|replace\b/.test(t))return 'high';
+    if(i.includes('shift')||i.includes('edit')||i.includes('recategor')||i.includes('create'))return 'medium';
+    return 'low';
+  }
+  function getPlanRiskLevel(plan,text){
+    const actions=Array.isArray(plan?.actions)?plan.actions:[];
+    let risk='low';
+    actions.forEach(function(a){
+      const t=String(a?.type||'').toLowerCase();
+      const declared=String(a?.risk||'').toLowerCase();
+      if(declared==='high')risk='high';
+      if(risk!=='high'&&declared==='medium')risk='medium';
+      if(t.includes('delete')||t==='shift.intent')risk='high';
+      if(t==='settings.update'&&a?.updates&&typeof a.updates==='object'){
+        const n=Object.keys(a.updates).length;
+        if(n>1)risk='high';
+        else if(risk==='low')risk='medium';
+      }
+    });
+    if(risk==='low'&&String(text||'').trim())return getChatMutationRiskLevel(summarizeChatPlan(plan),text);
+    return risk;
+  }
+  function renderDryRunConfirmCard(container){
+    if(!container||!pendingDryRunConfirm)return;
+    const risk=String(pendingDryRunConfirm.risk||'medium');
+    const riskBg=risk==='high'?'rgba(220,38,38,.14)':risk==='medium'?'rgba(245,158,11,.16)':'rgba(22,163,74,.14)';
+    const riskFg=risk==='high'?'#DC2626':risk==='medium'?'#B45309':'#15803D';
+    const card=document.createElement('div');
+    card.id='chat-dryrun-confirm-card';
+    card.innerHTML=`<div style="background:var(--card);border:1px solid var(--border);padding:10px 12px;border-radius:12px;max-width:86%;font-size:12px;color:var(--text)"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px"><div style="font-weight:700">Preview ready</div><span style="padding:2px 8px;border-radius:999px;background:${riskBg};color:${riskFg};font-weight:800;text-transform:uppercase;font-size:10px;letter-spacing:.04em">${risk} risk</span></div><div style="color:var(--text2);margin-bottom:8px">Action: ${esc(pendingDryRunConfirm.intent)}.</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" onclick="confirmDryRunChatAction()" style="border:none;border-radius:10px;padding:7px 12px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer">Confirm run</button><button type="button" onclick="cancelDryRunChatAction()" style="border:1px solid var(--border);border-radius:10px;padding:7px 12px;background:var(--bg2);color:var(--text);font-weight:700;cursor:pointer">Cancel</button></div></div>`;
+    container.appendChild(card);
+  }
+  window.confirmDryRunChatAction=function(){
+    if(!pendingDryRunConfirm)return;
+    const input=document.getElementById('chat-input');
+    const text=pendingDryRunConfirm.text;
+    window.__chatBypassDryRunText=String(text||'');
+    pendingDryRunConfirm=null;
+    document.getElementById('chat-dryrun-confirm-card')?.remove();
+    if(input)input.value=text;
+    if(typeof window.sendChatMsg==='function')window.sendChatMsg();
+  };
+  window.cancelDryRunChatAction=function(){
+    pendingDryRunConfirm=null;
+    document.getElementById('chat-dryrun-confirm-card')?.remove();
+    const messages=document.getElementById('chat-messages');
+    if(messages){
+      const aiMsg=document.createElement('div');
+      aiMsg.innerHTML='<div style="background:#f0f0f0;padding:12px 16px;border-radius:12px;font-size:13px;max-width:80%;color:#333;">Canceled. No changes were made.</div>';
+      messages.appendChild(aiMsg);
+      appendChatHistory('assistant','Canceled. No changes were made.');
+      messages.scrollTop=messages.scrollHeight;
+    }
+  };
   
   // Add chat button after page loads
   setTimeout(function() {
@@ -3656,6 +4064,39 @@ function checkDueNowBanner(){
     try {
       let reply = '';
       try {
+        const mutIntent=getChatMutationIntentSummary(text);
+        const bypassDryRun=window.__chatBypassDryRunText&&String(window.__chatBypassDryRunText)===String(text||'');
+        window.__chatBypassDryRunText='';
+        if(getChatAutonomyMode()==='agentic'&&isChatPlannerEnabled()){
+          try{
+            const plan=await fetchServerChatPlan(text);
+            const planSummary=summarizeChatPlan(plan);
+            const hasPlanActions=Array.isArray(plan?.actions)&&plan.actions.length>0&&planSummary!=='no changes';
+            const planRisk=getPlanRiskLevel(plan,text);
+            if(hasPlanActions&&!bypassDryRun&&(isChatDryRunEnabled()||planRisk==='high')){
+              pendingDryRunConfirm={text,intent:planSummary,risk:getPlanRiskLevel(plan,text),at:Date.now(),plan};
+              const why=isChatDryRunEnabled()?'Dry run is ON.':'High-risk plan requires confirmation.';
+              reply=`${why} Planner prepared: ${planSummary}. No data was changed yet.\n\nUse Confirm run below to execute once, or Cancel. Action cap is ${getChatActionCap()} per request.`;
+            }else if(hasPlanActions&&bypassDryRun){
+              const run=executeChatPlanActions(plan);
+              if(run.executed){
+                const lines=(run.statuses||[]).slice(0,8).map(function(s){return `${s.status==='applied'?'✅':'⚪'} #${s.index} ${s.type}: ${s.message}`;});
+                reply=`Executed ${run.executed} planned action${run.executed===1?'':'s'}.\n${lines.join('\n')}`;
+              }else{
+                const lines=(run.statuses||[]).slice(0,8).map(function(s){return `⚪ #${s.index} ${s.type}: ${s.message}`;});
+                reply=lines.length?`No actions were applied.\n${lines.join('\n')}`:String(plan?.assistantReply||'Planner did not find executable changes.');
+              }
+            }else if(!mutIntent&&String(plan?.assistantReply||'').trim()){
+              reply=String(plan.assistantReply).trim();
+            }
+          }catch(_plannerErr){
+            // Planner is additive in phase 1; legacy routing remains fallback.
+          }
+        }
+        if(!reply&&getChatAutonomyMode()==='agentic'&&isChatDryRunEnabled()&&mutIntent&&!bypassDryRun){
+          pendingDryRunConfirm={text,intent:mutIntent,risk:getChatMutationRiskLevel(mutIntent,text),at:Date.now()};
+          reply=`Dry run is ON. I understood this as: ${mutIntent}. No data was changed yet.\n\nUse Confirm run below to execute once, or Cancel. Action cap is ${getChatActionCap()} per request.`;
+        } else if(!reply)
         if (shouldRouteShiftFromChat(text)) {
           const shiftIntent = await fetchServerShiftIntent(text);
           const byIntent = applyShiftIntentFromAi(shiftIntent);
@@ -3671,7 +4112,7 @@ function checkDueNowBanner(){
               if (shiftRes.added || shiftRes.updated) {
                 reply =
                   `Updated Shifts page: ${shiftRes.added} added, ${shiftRes.updated} updated.` +
-                  ` Open the Shifts page calendar to review next week.`;
+                  `${shiftRes.clipped ? ` (capped to ${shiftRes.cap})` : ''} Open the Shifts page calendar to review next week.`;
               } else {
                 reply = 'I could not safely extract concrete shift edits from that request. Include the target week/day changes (for example: "move all next-week shifts one day earlier" or list each day and time), and I will apply them to the Shifts page.';
               }
@@ -3795,6 +4236,7 @@ function checkDueNowBanner(){
       aiMsg.innerHTML = '<div style="background:#f0f0f0;padding:12px 16px;border-radius:12px;font-size:13px;max-width:80%;color:#333;">' + reply.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
       messages.appendChild(aiMsg);
       appendChatHistory('assistant', reply);
+      if(pendingDryRunConfirm)renderDryRunConfirmCard(messages);
       messages.scrollTop = messages.scrollHeight;
     } catch (err) {
       loading.remove();
