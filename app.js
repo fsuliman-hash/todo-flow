@@ -2747,6 +2747,11 @@ function checkDueNowBanner(){
 (function() {
   const CHAT_STORE_KEY = 'rp3_chat_history_v1';
   let pendingDryRunConfirm = null;
+  function debugChatLog(runId, hypothesisId, location, message, data){
+    // #region agent log
+    fetch('http://127.0.0.1:7623/ingest/ba9f3f7f-430a-40e2-aa31-3a4e30ede01d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'cbed65'},body:JSON.stringify({sessionId:'cbed65',runId,hypothesisId,location,message,data,timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  }
 
   function loadChatHistory() {
     try {
@@ -3938,9 +3943,9 @@ function checkDueNowBanner(){
     if(shouldRouteShiftFromChat(t))return 'apply shift updates';
     if(shouldEditTaskFromChat(t))return 'edit existing task(s)';
     if(shouldCreateTaskFromChat(t))return 'create new task(s)';
-    if(detectDuplicateDeleteCommand(t))return 'delete duplicate tasks';
-    if(detectCompletedDeleteCommand(t))return 'delete completed tasks';
-    if(detectOverdueDeleteCommand(t))return 'delete overdue tasks';
+    if(shouldDeleteDuplicatesFromChat(t))return 'delete duplicate tasks';
+    if(shouldDeleteCompletedFromChat(t))return 'delete completed tasks';
+    if(shouldDeleteOverdueFromChat(t))return 'delete overdue tasks';
     if(window.__aiRecatPreview?.changes?.length)return 'apply AI recategorization';
     return '';
   }
@@ -4044,6 +4049,7 @@ function checkDueNowBanner(){
     
     const text = input.value.trim();
     if (!text) return;
+    debugChatLog('sweep-1','H1','app.js:4045','chat-send-start',{textPreview:text.slice(0,120),mode:getChatAutonomyMode(),dryRun:isChatDryRunEnabled(),planner:isChatPlannerEnabled(),actionCap:getChatActionCap()});
     input.value = '';
     if (sendBtn) { sendBtn.disabled = true; sendBtn.style.opacity = '0.6'; }
     
@@ -4076,12 +4082,14 @@ function checkDueNowBanner(){
             const planSummary=summarizeChatPlan(plan);
             const hasPlanActions=Array.isArray(plan?.actions)&&plan.actions.length>0&&planSummary!=='no changes';
             const planRisk=getPlanRiskLevel(plan,text);
+            debugChatLog('sweep-1','H2','app.js:4075','planner-result',{hasPlanActions,planSummary,planRisk,assistantReply:String(plan?.assistantReply||'').slice(0,200),actionCount:Array.isArray(plan?.actions)?plan.actions.length:0,actionTypes:Array.isArray(plan?.actions)?plan.actions.map(a=>String(a?.type||'')).slice(0,12):[]});
             if(hasPlanActions&&!bypassDryRun&&(isChatDryRunEnabled()||planRisk==='high')){
               pendingDryRunConfirm={text,intent:planSummary,risk:getPlanRiskLevel(plan,text),at:Date.now(),plan};
               const why=isChatDryRunEnabled()?'Dry run is ON.':'High-risk plan requires confirmation.';
               reply=`${why} Planner prepared: ${planSummary}. No data was changed yet.\n\nUse Confirm run below to execute once, or Cancel. Action cap is ${getChatActionCap()} per request.`;
             }else if(hasPlanActions&&bypassDryRun){
               const run=executeChatPlanActions(plan);
+              debugChatLog('sweep-1','H5','app.js:4084','planner-exec-result',{executed:run?.executed||0,statuses:Array.isArray(run?.statuses)?run.statuses.slice(0,12):[],notes:Array.isArray(run?.notes)?run.notes.slice(0,8):[]});
               if(run.executed){
                 const lines=(run.statuses||[]).slice(0,8).map(function(s){return `${s.status==='applied'?'✅':'⚪'} #${s.index} ${s.type}: ${s.message}`;});
                 reply=`Executed ${run.executed} planned action${run.executed===1?'':'s'}.\n${lines.join('\n')}`;
@@ -4100,6 +4108,7 @@ function checkDueNowBanner(){
           }
         }
         if(!reply&&getChatAutonomyMode()==='agentic'&&isChatDryRunEnabled()&&mutIntent&&!bypassDryRun){
+          debugChatLog('sweep-1','H3','app.js:4099','legacy-dryrun-triggered',{mutIntent,bypassDryRun,plannerTried});
           pendingDryRunConfirm={text,intent:mutIntent,risk:getChatMutationRiskLevel(mutIntent,text),at:Date.now()};
           reply=`Dry run is ON. I understood this as: ${mutIntent}. No data was changed yet.\n\nUse Confirm run below to execute once, or Cancel. Action cap is ${getChatActionCap()} per request.`;
         } else if(!reply&&!(plannerTried&&mutIntent))
@@ -4204,6 +4213,7 @@ function checkDueNowBanner(){
             reply = `I found ${plan.removeIds.length} overdue task${plan.removeIds.length===1?'':'s'} to delete. Reply "confirm" to continue or "cancel" to keep them.`;
           }
         } else if (shouldCreateTaskFromChat(text)) {
+          debugChatLog('sweep-1','H4','app.js:4189','legacy-create-route-hit',{plannerTried,mutIntent,textPreview:text.slice(0,120)});
           const extractedTask = await fetchServerTaskAction(text);
           const validated = validateChatTaskDraft(extractedTask, text);
           if (!validated.ok) {
@@ -4221,6 +4231,7 @@ function checkDueNowBanner(){
             } else {
               const created = addTaskFromChatTask(validated.task);
               if (created) {
+                debugChatLog('sweep-1','H4','app.js:4205','legacy-task-created',{title:String(created?.title||''),category:String(created?.category||''),sourceMode:String(created?.sourceMode||'')});
                 reply = `Added "${created.title}" to your tasks${created.unscheduled ? '.' : ` for ${fmtD(created.dueDate)}.`}`;
               } else {
                 reply = await fetchServerChatReply(text);
