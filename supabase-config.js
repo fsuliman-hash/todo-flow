@@ -42,7 +42,9 @@ function rowToTask(row) {
     title: String(row.title || 'Untitled'),
     notes: String(row.notes || ''),
     dueDate,
-    startDate: unscheduled ? '' : dueDate,
+    // Do not infer start date from due date.
+    // Inferring this made many synced tasks look "future-start" and disappear from active views.
+    startDate: '',
     category: String(row.cat || 'personal'),
     priority: String(row.pri || 'medium'),
     recurrence: String(row.rec || 'none'),

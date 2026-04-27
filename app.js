@@ -2115,6 +2115,37 @@ function openClientProfileForm(id=''){
 function addClientProfile(){openClientProfileForm()}
 function editClientProfile(id){openClientProfileForm(id)}
 function deleteClientProfile(id){const idx=X.clients.findIndex(x=>x.id===id);if(idx<0)return;X.clients.splice(idx,1);timeLogs.forEach(l=>{if(l.clientId===id)l.clientId=''});sv();render();showToast('Client removed')}
+function buildSyncDiagnosticsLocal(){
+  const raw=(R||[]).filter(Boolean);
+  const visible=getTaskVisibleList(raw);
+  const visibleActive=visible.filter(r=>!r.completed);
+  const hiddenByStart=visibleActive.filter(r=>!isTaskStartVisible(r)).length;
+  const completed=visible.filter(r=>r.completed).length;
+  const autoPrayerHidden=Math.max(0,raw.length-visible.length);
+  return {rawTotal:raw.length,visibleTotal:visible.length,visibleActive:visibleActive.length,completed,hiddenByStart,autoPrayerHidden};
+}
+async function runSyncDiagnostics(){
+  if(typeof authManager==='undefined'||!authManager.isAuthenticated()){
+    showToast('Sign in first to run diagnostics');
+    return;
+  }
+  const startedAt=new Date().toISOString();
+  X.syncDiagnostics={loading:true,ranAt:startedAt,error:''};
+  sv(false);render();
+  try{
+    const local=buildSyncDiagnosticsLocal();
+    let cloudTotal=null;
+    if(typeof supabase!=='undefined'&&typeof supabase.getTasks==='function'){
+      const cloud=await supabase.getTasks();
+      cloudTotal=Array.isArray(cloud)?cloud.length:0;
+    }
+    X.syncDiagnostics={loading:false,ranAt:new Date().toISOString(),error:'',local,cloudTotal};
+    sv(false);render();showToast('Sync diagnostics updated');
+  }catch(err){
+    X.syncDiagnostics={loading:false,ranAt:new Date().toISOString(),error:String(err?.message||err||'Failed to load diagnostics')};
+    sv(false);render();showToast('Diagnostics failed');
+  }
+}
 function rSettings(){
   const perm=('Notification'in window)?Notification.permission:'unsupported';let h=rHdr('Settings','Customize and safeguard');
   h+=`<div class="settings"><div class="sitem"><div><div class="slbl">Dark Mode</div></div><button class="tog${S.darkMode?' on':''}" onclick="toggleDark()"></button></div>`;
@@ -2126,7 +2157,10 @@ function rSettings(){
     const u=authManager.getUser();
     const email=esc((u&&u.email)||'Signed in');
     const st=(typeof syncManager!=='undefined')?esc(syncManager.getSyncStatus()):'—';
-    h+=`<div class="list-row"><div class="list-main"><b>${email}</b><span id="tf-settings-sync-status">Cloud: ${st}</span></div></div><div class="safe-row" style="margin-top:10px"><button class="sbtn" type="button" id="tf-btn-sync-now" onclick="typeof tfManualSyncClick==='function'&&tfManualSyncClick(event)">↻ Sync now</button><button class="xbtn" type="button" id="tf-btn-sign-out" style="background:var(--red);color:#fff;border-color:transparent" onclick="typeof tfSignOutClick==='function'&&tfSignOutClick(event)">Sign out</button></div>`;
+    const diag=X.syncDiagnostics||{};
+    const local=diag.local||null;
+    h+=`<div class="list-row"><div class="list-main"><b>${email}</b><span id="tf-settings-sync-status">Cloud: ${st}</span></div></div><div class="safe-row" style="margin-top:10px"><button class="sbtn" type="button" id="tf-btn-sync-now" onclick="typeof tfManualSyncClick==='function'&&tfManualSyncClick(event)">↻ Sync now</button><button class="xbtn" type="button" onclick="runSyncDiagnostics()">🩺 Sync diagnostics</button><button class="xbtn" type="button" id="tf-btn-sign-out" style="background:var(--red);color:#fff;border-color:transparent" onclick="typeof tfSignOutClick==='function'&&tfSignOutClick(event)">Sign out</button></div>`;
+    h+=`<div class="panel" style="margin:10px 0 0"><h3>Sync diagnostics</h3>${diag.loading?`<div class="sdesc">Running diagnostics…</div>`:local?`<div class="mini-list"><div class="mini-item">Local raw tasks: <b>${local.rawTotal}</b></div><div class="mini-item">Local visible tasks: <b>${local.visibleTotal}</b></div><div class="mini-item">Local active visible: <b>${local.visibleActive}</b></div><div class="mini-item">Local completed: <b>${local.completed}</b></div><div class="mini-item">Hidden by start date: <b>${local.hiddenByStart}</b></div><div class="mini-item">Auto-prayer hidden from task views: <b>${local.autoPrayerHidden}</b></div><div class="mini-item">Cloud tasks (server): <b>${diag.cloudTotal??'—'}</b></div></div><div class="sdesc" style="margin-top:8px">Last run: ${diag.ranAt?new Date(diag.ranAt).toLocaleString():'Never'}</div>`:`<div class="sdesc">Tap <b>Sync diagnostics</b> to compare local and cloud counts on this device.</div>`}${diag.error?`<div class="sdesc" style="color:var(--red);margin-top:8px">${esc(diag.error)}</div>`:''}</div>`;
   }else{
     h+=`<div class="sdesc" style="margin-bottom:10px">Optional: sign in to sync tasks to Supabase. Tasks stay on this device until you connect.</div><div class="safe-row"><button class="sbtn" type="button" onclick="typeof openTodoFlowAuthModal==='function'&&openTodoFlowAuthModal()">Sign in to sync</button></div>`;
   }
