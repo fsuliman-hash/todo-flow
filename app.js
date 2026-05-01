@@ -23,6 +23,7 @@ let view="tasks",filter="all",sortBy=localStorage.getItem("rp3_sort")||"date",se
 let pomoActive=false,pomoId=null,pomoEnd=0,pomoBreak=false,pomoInterval=null;
 let ttActive=null,ttStart=0,ttInterval=null;
 let listening=false,dragId=null,notifInterval=null,searchTimer=null,nlpTimer=null,nlpDraft="",nlpParsing=false;
+let completedSectionExpanded=false;
 let batchMode=false,batchSelected=new Set();
 
 function parseJSON(key,fallback){
@@ -1774,6 +1775,7 @@ function buildProductivityPlan(opts={}){const minutes=Math.max(10,Math.min(180,N
 function openPowerHourPlan(){const plan=buildProductivityPlan();const ov=document.createElement('div');ov.className='mo';ov.onclick=e=>{if(e.target===ov)ov.remove()};ov.innerHTML=`<div class="mo-in" onclick="event.stopPropagation()"><div class="mo-h"></div><h3>${plan.minutes}-minute plan</h3><div class="sdesc">${esc(plan.coach.body)}</div><div class="focus-queue" style="margin-top:12px">${plan.queue.length?plan.queue.map((task,i)=>`<div class="focus-step"><b>${i+1}. ${esc(task.title)}</b><span>${esc(getCategory(task.category).icon)} ${esc(getCategory(task.category).label)} · ~${task.effort} min · ${esc(task.reasons.join(' • ')||'good fit')}</span><div class="safe-row" style="margin-top:8px"><button class="chip-btn" onclick="openFocus('${task.id}')">Focus</button><button class="chip-btn" onclick="openEdit('${task.id}')">Edit</button></div></div>`).join(''):'<div class="sdesc">No tasks fit this plan yet.</div>'}</div><div class="safe-row" style="margin-top:14px"><button class="xbtn" onclick="setFocusStyle('quick')">Quick wins</button><button class="xbtn" onclick="setFocusStyle('deep')">Deep work</button><button class="xbtn" onclick="this.closest('.mo').remove()">Close</button></div></div>`;document.body.appendChild(ov)}
 function openRecoveryPlan(){const plan=buildProductivityPlan({style:'quick',minutes:20});const ov=document.createElement('div');ov.className='mo';ov.onclick=e=>{if(e.target===ov)ov.remove()};ov.innerHTML=`<div class="mo-in" onclick="event.stopPropagation()"><div class="mo-h"></div><h3>Momentum reset</h3><div class="sdesc">When the list feels heavy, start with the easiest overdue wins. No bulk changes are made automatically.</div>${plan.recovery.length?plan.recovery.map(task=>`<div class="list-row"><div class="list-main"><b>${esc(task.title)}</b><span>${fmtD(task.dueDate)} · ~${task.effort} min</span></div><div style="display:flex;gap:6px"><button class="cact" onclick="openFocus('${task.id}')">🎯</button><button class="cact" onclick="openSnooze('${task.id}')">💤</button></div></div>`).join(''):'<div class="sdesc" style="margin-top:12px">No overdue tasks right now.</div>'}<div class="safe-row" style="margin-top:14px"><button class="xbtn" onclick="go('myday');this.closest('.mo').remove()">Open My Day</button></div></div>`;document.body.appendChild(ov)}
 function render(){
+  if(view!=="tasks"||filter!=="all")completedSectionExpanded=false;
   let h="";
   if(view==="tasks")h=rTasks();else if(view==="myday")h=rMyDay();else if(view==="calendar")h=rCal();
   else if(view==="habits")h=rHabits();else if(view==="routines")h=rRoutines();
@@ -1958,6 +1960,70 @@ function getFiltered(){
   else l.sort((a,b)=>((b.pinned?1:0)-(a.pinned?1:0))||((a.order??0)-(b.order??0)));
   return l;
 }
+function getTasksForGroupedMainView(){
+  const dupIds=filter==='duplicates'?getDuplicateTaskIdSet():null;
+  let l=getTaskVisibleList(R).filter(r=>{
+    if(filter==='all')return true;
+    if(filter==='done')return r.completed;
+    if(filter==='recent')return !r.completed&&isRecentlyAddedTask(r);
+    if(filter==='duplicates')return !r.completed&&dupIds&&dupIds.has(r.id);
+    if(filter==='overdue')return !r.completed&&urg(r.dueDate)==='overdue';
+    if(filter==='duesoon')return !r.completed&&['urgent','soon'].includes(urg(r.dueDate));
+    if(filter==='duelater')return !r.completed&&urg(r.dueDate)==='later';
+    return r.category===filter&&!r.completed;
+  });
+  if(filter!=='duplicates'){
+    l=l.filter(r=>r.completed||isTaskStartVisible(r));
+  }
+  if(search){const q=search.toLowerCase();l=l.filter(r=>r.title.toLowerCase().includes(q)||(r.notes||'').toLowerCase().includes(q)||(r.tags||[]).some(t=>t.toLowerCase().includes(q))||(r.subject||'').toLowerCase().includes(q));}
+  const po={critical:0,high:1,medium:2,low:3};
+  if(sortBy==='date')l.sort((a,b)=>((b.pinned?1:0)-(a.pinned?1:0))||(new Date(a.dueDate)-new Date(b.dueDate))||((a.order??0)-(b.order??0)));
+  else if(sortBy==='priority')l.sort((a,b)=>((b.pinned?1:0)-(a.pinned?1:0))||((po[a.priority]||3)-(po[b.priority]||3))||new Date(a.dueDate)-new Date(b.dueDate));
+  else if(sortBy==='name')l.sort((a,b)=>((b.pinned?1:0)-(a.pinned?1:0))||a.title.localeCompare(b.title));
+  else l.sort((a,b)=>((b.pinned?1:0)-(a.pinned?1:0))||((a.order??0)-(b.order??0)));
+  return l;
+}
+function groupTasksForMainView(list){
+  const overdue=[],today=[],upcoming=[],completed=[];
+  list.forEach(r=>{
+    if(!r)return;
+    if(r.completed){completed.push(r);return;}
+    if(isUnscheduledISO(r.dueDate)){upcoming.push(r);return;}
+    const u=urg(r.dueDate);
+    if(u==='overdue'){overdue.push(r);return;}
+    if(isToday(r.dueDate)){today.push(r);return;}
+    upcoming.push(r);
+  });
+  return {overdue,today,upcoming,completed};
+}
+function toggleCompletedSection(){
+  completedSectionExpanded=!completedSectionExpanded;
+  render();
+}
+function rTaskSection(title,items,opts={}){
+  const variant=opts.variant||'';
+  if(!items.length)return'';
+  const headCls=`task-sec-head${variant?` task-sec-${variant}`:''}`;
+  return`<div class="task-sec"><div class="${headCls}">${esc(title)}</div>${rCards(items)}</div>`;
+}
+function rGroupedTaskList(baseList){
+  if(filter!=='all')return rCards(baseList);
+  const g=groupTasksForMainView(baseList);
+  const completedSorted=g.completed.slice().sort((a,b)=>new Date(b.completedAt||b.createdAt||0)-new Date(a.completedAt||a.createdAt||0));
+  const completedPreview=completedSorted.slice(0,5);
+  let h='';
+  h+=rTaskSection('Overdue',g.overdue,{variant:'overdue'});
+  h+=rTaskSection('Today',g.today);
+  h+=rTaskSection('Upcoming',g.upcoming);
+  if(completedSorted.length){
+    const label=completedSectionExpanded?`Hide completed (${completedSorted.length})`:`Show ${Math.min(5,completedSorted.length)} completed`;
+    h+=`<div class="task-sec"><div class="task-sec-head task-sec-completed"><span>Completed</span><button type="button" class="task-sec-toggle" onclick="toggleCompletedSection()">${esc(label)}</button></div>`;
+    h+=rCards(completedSectionExpanded?completedSorted:completedPreview);
+    h+=`</div>`;
+  }
+  if(!h)return rCards([]);
+  return h;
+}
 function isRecentlyAddedTask(r){
   if(!r||!r.createdAt)return false;
   const created=new Date(r.createdAt);
@@ -1982,14 +2048,17 @@ function rTasks(){
   const dupCount=getDuplicateTaskIdSet().size;
   const recentAddedCount=getTaskVisibleList(R).filter(r=>!r.completed&&isRecentlyAddedTask(r)).length;
   const filteredTasks=getFiltered();
+  const groupedBase=getTasksForGroupedMainView();
+  const listCount=filter==='all'?groupedBase.length:filteredTasks.length;
   h+=`<div class="task-filter-head"><div class="task-filter-label">Task views</div><div class="task-filter-actions"><button class="chip-btn${filter==='all'?' on':''}" onclick="filter='all';render()">Active</button><button class="chip-btn${filter==='done'?' on':''}" onclick="filter='done';render()">Done</button><button class="chip-btn${filter==='recent'?' on':''}" onclick="filter='recent';render()">Recently Added${recentAddedCount?` (${recentAddedCount})`:''}</button><button class="chip-btn${filter==='duplicates'?' on':''}" onclick="filter='duplicates';render()">Duplicates${dupCount?` (${dupCount})`:''}</button>${filter==='duplicates'&&dupCount?`<button class="chip-btn" onclick="deleteAllDuplicatesFromFilter()">Delete all duplicates</button>`:''}<button class="chip-btn" onclick="openAiRecategorizeModal()">AI recategorize</button><button class="chip-btn" onclick="openBulkImport()">Bulk import</button></div></div>`;
   if(filter!=='done'){
     h+=`<div class="panel" style="margin:8px 14px 0"><h3>Recently completed</h3>${recentDone.length?recentDone.map(r=>`<div class="list-row"><div class="list-main"><b>${esc(r.title)}</b><span>${r.completedAt?new Date(r.completedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):''}</span></div><button class="cact" onclick="reopenTask('${r.id}')" title="Bring back to active">↩</button></div>`).join(''):'<div class="sdesc">No recently completed tasks yet.</div>'}</div>`;
   }
   h+=`<div class="filters task-cat-row">`;
   CATS.forEach(c=>{h+=`<button class="fbtn${filter===c.key?' active':''}" onclick="filter='${c.key}';render()">${c.icon} ${c.label}</button>`});
-  h+=`<button class="fbtn" onclick="go('settings');setTimeout(()=>document.getElementById('catManage')?.scrollIntoView({behavior:'smooth',block:'start'}),120)">⚙ Manage categories</button></div><div class="sort-row"><span id="taskCountLabel">${filteredTasks.length} items${sortBy==='manual'?' · drag to reorder':''}</span><select onchange="setSort(this.value)"><option value="date"${sortBy==='date'?' selected':''}>Date</option><option value="priority"${sortBy==='priority'?' selected':''}>Priority</option><option value="name"${sortBy==='name'?' selected':''}>A-Z</option><option value="manual"${sortBy==='manual'?' selected':''}>Manual</option></select></div>`;
-  h+=`<div class="task-desktop-grid"><div class="task-main-col"><div class="clist task-stack" id="taskList">${rCards(filteredTasks)}</div></div>${rTaskWorkspaceAside()}</div>`;return h;
+  h+=`<button class="fbtn" onclick="go('settings');setTimeout(()=>document.getElementById('catManage')?.scrollIntoView({behavior:'smooth',block:'start'}),120)">⚙ Manage categories</button></div><div class="sort-row"><span id="taskCountLabel">${listCount} items${sortBy==='manual'?' · drag to reorder':''}</span><select onchange="setSort(this.value)"><option value="date"${sortBy==='date'?' selected':''}>Date</option><option value="priority"${sortBy==='priority'?' selected':''}>Priority</option><option value="name"${sortBy==='name'?' selected':''}>A-Z</option><option value="manual"${sortBy==='manual'?' selected':''}>Manual</option></select></div>`;
+  const mainListHtml=filter==='all'?rGroupedTaskList(groupedBase):rCards(filteredTasks);
+  h+=`<div class="task-desktop-grid"><div class="task-main-col"><div class="clist task-stack" id="taskList">${mainListHtml}</div></div>${rTaskWorkspaceAside()}</div>`;return h;
 }
 function rCards(list){
   if(!list.length)return`<div class="empty"><div class="empty-i">✨</div><div class="empty-t">Nothing here</div></div>`;
