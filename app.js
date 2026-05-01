@@ -73,6 +73,24 @@ function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").repl
 function isUnscheduledISO(iso){const d=new Date(iso);return !Number.isNaN(d.getTime())&&d.getFullYear()>=2099}
 function fmtD(iso){if(isUnscheduledISO(iso))return"No date";const d=new Date(iso),n=new Date(),t=new Date(n);t.setDate(t.getDate()+1);const tm=d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});if(d.toDateString()===n.toDateString())return"Today · "+tm;if(d.toDateString()===t.toDateString())return"Tomorrow · "+tm;return d.toLocaleDateString([],{weekday:"short",month:"short",day:"numeric"})+" · "+tm}
 function tUntil(iso){if(isUnscheduledISO(iso))return"No date";const df=new Date(iso)-new Date();if(df<0)return"Overdue";const m=Math.floor(df/60000);if(m<60)return m+"m";const h=Math.floor(m/60);if(h<24)return h+"h "+m%60+"m";return Math.floor(h/24)+"d "+h%24+"h"}
+function startOfLocalDay(d){const x=new Date(d);x.setHours(0,0,0,0);return x}
+function calendarDaysBetween(from,to){return Math.round((startOfLocalDay(to)-startOfLocalDay(from))/86400000)}
+function fmtTaskDueHuman(iso){
+  if(isUnscheduledISO(iso))return'No date';
+  const d=new Date(iso);
+  if(Number.isNaN(d.getTime()))return'No date';
+  const tm=d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+  const dayDiff=calendarDaysBetween(new Date(),d);
+  if(dayDiff<0){
+    const n=Math.abs(dayDiff);
+    const ago=n===1?'yesterday':`${n} days ago`;
+    return`Overdue · ${ago}, ${tm}`;
+  }
+  if(dayDiff===0)return`Today, ${tm}`;
+  if(dayDiff===1)return`Tomorrow, ${tm}`;
+  if(dayDiff>=2&&dayDiff<=7)return`${d.toLocaleDateString([],{weekday:'long'})}, ${tm}`;
+  return`${d.toLocaleDateString([],{month:'short',day:'numeric'})}, ${tm}`;
+}
 function urg(iso){if(isUnscheduledISO(iso))return"later";const df=new Date(iso)-new Date();if(df<0)return"overdue";if(df<3600000)return"urgent";if(df<86400000)return"soon";return"later"}
 function isToday(iso){return new Date(iso).toDateString()===new Date().toDateString()}
 function sameDay(a,b){return a.toDateString()===b.toDateString()}
@@ -2066,6 +2084,9 @@ function rCards(list){
     const u=urg(r.dueDate),cat=getCategory(r.category),pri=PRIS.find(p=>p.key===r.priority)||PRIS[0];
     const stD=(r.subtasks||[]).filter(s=>s.done).length,stT=(r.subtasks||[]).length;const blocked=!!(r.dependsOn&&R.find(x=>x.id===r.dependsOn && !x.completed));
     const kid=r.childId?X.children.find(c=>c.id===r.childId):null;
+    const overdueBadge=u==='overdue'&&!r.completed?'<span class="cbdg bdg-overdue-label">Overdue</span>':'';
+    const dueHuman=fmtTaskDueHuman(r.dueDate);
+    const dueLineCls='cdate-line'+(dueHuman==='No date'?' cdate-muted':'');
     return`<div class="card pri-${r.priority||'low'}${r.completed?' completed':''}" data-task-id="${r.id}" draggable="true" ondragstart="dragS(event,'${r.id}')" ondragover="dragO(event)" ondragleave="this.classList.remove('drag-over')" ondrop="dragD(event,'${r.id}')" ontouchstart="taskTouchStart(event,'${r.id}')" ontouchmove="taskTouchMove(event,'${r.id}')" ontouchend="taskTouchEnd(event,'${r.id}')" ontouchcancel="taskTouchCancel(event,'${r.id}')" oncontextmenu="event.preventDefault();openTaskMenu('${r.id}')">
       <div class="crow">
         <span class="drag-handle">⠿</span>
@@ -2080,7 +2101,7 @@ function rCards(list){
           ${r.billable?`<div class="ctime">💰 Billable</div>`:''}
           ${r.effort?`<div class="ctime">⏱️ ${EFFORTS.find(e=>e.key===r.effort)?.label||r.effort}</div>`:''}
           ${stT?`<div class="csubs">${(r.subtasks||[]).map((s,i)=>`<div class="csub${s.done?' dn':''}"><button class="csubchk${s.done?' on':''}" onclick="toggleSub('${r.id}',${i})">${s.done?'✓':''}</button><span>${esc(s.text)}</span></div>`).join('')}<div style="font-size:9px;color:var(--text3)">${stD}/${stT}</div></div>`:''}
-          <div class="cmeta"><span class="cdate">${fmtD(r.dueDate)}</span>${r.startDate?`<span class="cdate">Start ${fmtD(r.startDate)}</span>`:''}<span class="cbdg bdg-${u}">${tUntil(r.dueDate)}</span>${r.recurrence&&r.recurrence!=='none'?`<span class="crec">🔁 ${r.recurrence}</span>`:''}${u==='overdue'&&!r.completed?`<button class="csnz" onclick="openSnooze('${r.id}')">💤 Snooze</button>`:''}</div>
+          <div class="cmeta">${overdueBadge}<span class="${dueLineCls}">${dueHuman}</span>${r.startDate?`<span class="cdate">Start ${fmtD(r.startDate)}</span>`:''}${r.recurrence&&r.recurrence!=='none'?`<span class="crec">🔁 ${r.recurrence}</span>`:''}${u==='overdue'&&!r.completed?`<button class="csnz" onclick="openSnooze('${r.id}')">💤 Snooze</button>`:''}</div>
         </div>
         <div class="cacts"><button class="cact" onclick="openEdit('${r.id}')">✏️</button><button class="cact" onclick="delR('${r.id}')">🗑</button></div>
       </div>
