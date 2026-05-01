@@ -837,7 +837,7 @@ function addTaskFromParsedNlpTask(task){
     title:title,
     notes:notes,
     dueDate:hasDue?new Date(dueMs).toISOString():UNSCHEDULED_SENTINEL_ISO,
-    startDate:hasDue?new Date(dueMs).toISOString():'',
+    startDate:'',
     unscheduled:!hasDue,
     category:'personal',
     priority:'medium',
