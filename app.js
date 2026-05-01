@@ -1684,7 +1684,7 @@ function ensureEnhancementStyles(){
   .desktop-shell .bnav button{min-height:62px;padding:8px 6px;border-radius:16px;font-size:10px;line-height:1.15}.desktop-shell .bnav button.active{background:var(--abg)}.desktop-shell .bnav button:hover{background:var(--bg2);color:var(--accent)}
   .desktop-shell .hdr,.desktop-shell .nlp-bar,.desktop-shell .nlp-hint,.desktop-shell .suggest-bar,.desktop-shell .task-filter-head,.desktop-shell .filters,.desktop-shell .sort-row,.desktop-shell .search-row,.desktop-shell .settings,.desktop-shell .cal,.desktop-shell .timeline,.desktop-shell .sv,.desktop-shell .dash-grid,.desktop-shell .prayer-grid,.desktop-shell .kid-tabs,.desktop-shell .coach-banner,.desktop-shell .prod-toolbar{max-width:1230px;margin-left:auto;margin-right:auto}
   .desktop-shell .hdr{margin-top:0;border-radius:28px;padding:24px 14px 18px;box-shadow:0 20px 40px rgba(15,23,42,.16)}
-  .desktop-shell .task-desktop-grid{max-width:1230px;margin:0 auto;grid-template-columns:minmax(0,1.35fr) 360px;align-items:start;gap:18px;padding:0 14px}.desktop-shell #taskList.task-stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:8px 0 0!important}.desktop-shell #taskList.task-stack .card{margin-bottom:0}.desktop-shell #taskList.task-stack .empty{grid-column:1/-1}.desktop-shell .task-side-col{position:sticky;top:18px}
+  .desktop-shell .task-desktop-grid{max-width:1230px;margin:0 auto;grid-template-columns:minmax(0,1.35fr) 360px;align-items:start;gap:18px;padding:0 14px}.desktop-shell #taskList.task-stack:not(.task-stack-grouped){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:8px 0 0!important}.desktop-shell #taskList.task-stack:not(.task-stack-grouped) .card{margin-bottom:0}.desktop-shell #taskList.task-stack:not(.task-stack-grouped) .empty{grid-column:1/-1}.desktop-shell #taskList.task-stack.task-stack-grouped{display:flex;flex-direction:column;gap:18px;padding:8px 0 0!important}.desktop-shell #taskList.task-stack.task-stack-grouped .task-sec{width:100%;min-width:0}.desktop-shell #taskList.task-stack.task-stack-grouped .task-sec-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.desktop-shell #taskList.task-stack.task-stack-grouped .task-sec-cards .card{margin-bottom:0}.desktop-shell #taskList.task-stack.task-stack-grouped .task-sec-cards .empty{grid-column:1/-1}.desktop-shell .task-side-col{position:sticky;top:18px}
   .desktop-shell .dash-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.desktop-shell .dash-card.full{grid-column:1/-1}.desktop-shell .plan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.desktop-shell .more-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.desktop-shell .prod-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
   .desktop-shell .filters,.desktop-shell .kid-tabs,.desktop-shell .task-filter-actions,.desktop-shell .safe-row{overflow:visible;flex-wrap:wrap}.desktop-shell .task-filter-actions{row-gap:8px}.desktop-shell .panel{max-width:1230px;margin-left:auto;margin-right:auto}.desktop-shell .panel:last-child{margin-bottom:36px}
   .desktop-shell .mo{padding:16px 24px 20px 128px;overflow-y:auto;align-items:flex-start;justify-content:flex-start}.desktop-shell .mo-in{margin:12px auto;max-width:min(1000px,calc(100vw - 220px));border-radius:26px;padding:22px 22px 26px;box-shadow:0 30px 60px rgba(2,6,23,.26)}.desktop-shell .mo-h{margin-bottom:16px}
@@ -1692,7 +1692,8 @@ function ensureEnhancementStyles(){
   .desktop-shell .settings{padding-bottom:40px}.desktop-shell .clist{padding-bottom:40px}.desktop-shell .timeline,.desktop-shell .cal,.desktop-shell .sv{padding-bottom:40px}.desktop-shell .settings .xbtn:hover,.desktop-shell .safe-row .xbtn:hover,.desktop-shell .chip-btn:hover{border-color:var(--accent);color:var(--accent)}
   .desktop-shell .search-row input:focus,.desktop-shell .nlp-bar input:focus,.desktop-shell .finp:focus{box-shadow:0 0 0 4px var(--abg)}
   @media (min-width:1280px){.desktop-shell .dash-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.desktop-shell .task-desktop-grid{grid-template-columns:minmax(0,1.5fr) 380px}.desktop-shell .more-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
-  @media (min-width:1500px){.desktop-shell #app{max-width:1480px!important}.desktop-shell .hdr,.desktop-shell .nlp-bar,.desktop-shell .nlp-hint,.desktop-shell .suggest-bar,.desktop-shell .task-filter-head,.desktop-shell .filters,.desktop-shell .sort-row,.desktop-shell .search-row,.desktop-shell .settings,.desktop-shell .cal,.desktop-shell .timeline,.desktop-shell .sv,.desktop-shell .dash-grid,.desktop-shell .kid-tabs,.desktop-shell .coach-banner,.desktop-shell .prod-toolbar,.desktop-shell .panel,.desktop-shell .task-desktop-grid{max-width:1320px}.desktop-shell #taskList.task-stack{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media (min-width:1500px){.desktop-shell #app{max-width:1480px!important}.desktop-shell .hdr,.desktop-shell .nlp-bar,.desktop-shell .nlp-hint,.desktop-shell .suggest-bar,.desktop-shell .task-filter-head,.desktop-shell .filters,.desktop-shell .sort-row,.desktop-shell .search-row,.desktop-shell .settings,.desktop-shell .cal,.desktop-shell .timeline,.desktop-shell .sv,.desktop-shell .dash-grid,.desktop-shell .kid-tabs,.desktop-shell .coach-banner,.desktop-shell .prod-toolbar,.desktop-shell .panel,.desktop-shell .task-desktop-grid{max-width:1320px}.desktop-shell #taskList.task-stack:not(.task-stack-grouped){grid-template-columns:repeat(3,minmax(0,1fr))}.desktop-shell #taskList.task-stack.task-stack-grouped .task-sec-cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media (max-width:720px){.desktop-shell #taskList.task-stack.task-stack-grouped .task-sec-cards{grid-template-columns:1fr}}
   .hdr h1{font-size:24px;letter-spacing:-.03em}.hdr-date,.sdesc,.dash-sub,.coach-copy,.queue-line span,.list-main span{line-height:1.5}.card,.panel,.dash-card,.more-card,.plan-card,.coach-card{box-shadow:0 10px 24px rgba(15,23,42,.06)}[data-theme='dark'] .card,[data-theme='dark'] .panel,[data-theme='dark'] .dash-card,[data-theme='dark'] .more-card,[data-theme='dark'] .plan-card,[data-theme='dark'] .coach-card{box-shadow:none}.fbtn.active,.chip-btn.on,.lane-pill.on{box-shadow:0 8px 20px rgba(234,88,12,.12)}.task-filter-actions .chip-btn,.safe-row .xbtn,.hero-actions .chip-btn{min-height:40px}.more-card{min-height:112px}.desktop-shell .bnav button.active{box-shadow:inset 0 0 0 1px rgba(234,88,12,.18)}
   `;
   document.head.appendChild(st);
@@ -2007,9 +2008,9 @@ function groupTasksForMainView(list){
     if(!r)return;
     if(r.completed){completed.push(r);return;}
     if(isUnscheduledISO(r.dueDate)){upcoming.push(r);return;}
+    if(isToday(r.dueDate)){today.push(r);return;}
     const u=urg(r.dueDate);
     if(u==='overdue'){overdue.push(r);return;}
-    if(isToday(r.dueDate)){today.push(r);return;}
     upcoming.push(r);
   });
   return {overdue,today,upcoming,completed};
@@ -2022,7 +2023,7 @@ function rTaskSection(title,items,opts={}){
   const variant=opts.variant||'';
   if(!items.length)return'';
   const headCls=`task-sec-head${variant?` task-sec-${variant}`:''}`;
-  return`<div class="task-sec"><div class="${headCls}">${esc(title)}</div>${rCards(items)}</div>`;
+  return`<div class="task-sec"><div class="${headCls}">${esc(title)}</div><div class="task-sec-cards">${rCards(items)}</div></div>`;
 }
 function rGroupedTaskList(baseList){
   if(filter!=='all')return rCards(baseList);
@@ -2035,9 +2036,9 @@ function rGroupedTaskList(baseList){
   h+=rTaskSection('Upcoming',g.upcoming);
   if(completedSorted.length){
     const label=completedSectionExpanded?`Hide completed (${completedSorted.length})`:`Show ${Math.min(5,completedSorted.length)} completed`;
-    h+=`<div class="task-sec"><div class="task-sec-head task-sec-completed"><span>Completed</span><button type="button" class="task-sec-toggle" onclick="toggleCompletedSection()">${esc(label)}</button></div>`;
+    h+=`<div class="task-sec"><div class="task-sec-head task-sec-completed"><span>Completed</span><button type="button" class="task-sec-toggle" onclick="toggleCompletedSection()">${esc(label)}</button></div><div class="task-sec-cards">`;
     h+=rCards(completedSectionExpanded?completedSorted:completedPreview);
-    h+=`</div>`;
+    h+=`</div></div>`;
   }
   if(!h)return rCards([]);
   return h;
@@ -2062,21 +2063,17 @@ function rTasks(){
   if(sug)h+=`<div class="suggest-bar"><span>💡</span><span class="st">${esc(sug.text)}</span><button onclick="applySug('${esc(sug.action)}')">Go</button><button class="dism" onclick="this.parentElement.remove()">✕</button></div>`;
   if(X.clipboardSuggestion)h+=`<div class="suggest-bar"><span>📋</span><span class="st">Clipboard looks like a date/reminder: ${esc(X.clipboardSuggestion)}</span><button onclick="useClipboardSuggestion()">Use</button><button class="dism" onclick="dismissClipboardSuggestion()">✕</button></div>`;
   if(ttActive)h+=rTTActive();
-  const recentDone=R.filter(r=>r&&r.completed&&r.completedAt).sort((a,b)=>new Date(b.completedAt)-new Date(a.completedAt)).slice(0,4);
   const dupCount=getDuplicateTaskIdSet().size;
   const recentAddedCount=getTaskVisibleList(R).filter(r=>!r.completed&&isRecentlyAddedTask(r)).length;
   const filteredTasks=getFiltered();
   const groupedBase=getTasksForGroupedMainView();
   const listCount=filter==='all'?groupedBase.length:filteredTasks.length;
   h+=`<div class="task-filter-head"><div class="task-filter-label">Task views</div><div class="task-filter-actions"><button class="chip-btn${filter==='all'?' on':''}" onclick="filter='all';render()">Active</button><button class="chip-btn${filter==='done'?' on':''}" onclick="filter='done';render()">Done</button><button class="chip-btn${filter==='recent'?' on':''}" onclick="filter='recent';render()">Recently Added${recentAddedCount?` (${recentAddedCount})`:''}</button><button class="chip-btn${filter==='duplicates'?' on':''}" onclick="filter='duplicates';render()">Duplicates${dupCount?` (${dupCount})`:''}</button>${filter==='duplicates'&&dupCount?`<button class="chip-btn" onclick="deleteAllDuplicatesFromFilter()">Delete all duplicates</button>`:''}<button class="chip-btn" onclick="openAiRecategorizeModal()">AI recategorize</button><button class="chip-btn" onclick="openBulkImport()">Bulk import</button></div></div>`;
-  if(filter!=='done'){
-    h+=`<div class="panel" style="margin:8px 14px 0"><h3>Recently completed</h3>${recentDone.length?recentDone.map(r=>`<div class="list-row"><div class="list-main"><b>${esc(r.title)}</b><span>${r.completedAt?new Date(r.completedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):''}</span></div><button class="cact" onclick="reopenTask('${r.id}')" title="Bring back to active">↩</button></div>`).join(''):'<div class="sdesc">No recently completed tasks yet.</div>'}</div>`;
-  }
   h+=`<div class="filters task-cat-row">`;
   CATS.forEach(c=>{h+=`<button class="fbtn${filter===c.key?' active':''}" onclick="filter='${c.key}';render()">${c.icon} ${c.label}</button>`});
   h+=`<button class="fbtn" onclick="go('settings');setTimeout(()=>document.getElementById('catManage')?.scrollIntoView({behavior:'smooth',block:'start'}),120)">⚙ Manage categories</button></div><div class="sort-row"><span id="taskCountLabel">${listCount} items${sortBy==='manual'?' · drag to reorder':''}</span><select onchange="setSort(this.value)"><option value="date"${sortBy==='date'?' selected':''}>Date</option><option value="priority"${sortBy==='priority'?' selected':''}>Priority</option><option value="name"${sortBy==='name'?' selected':''}>A-Z</option><option value="manual"${sortBy==='manual'?' selected':''}>Manual</option></select></div>`;
   const mainListHtml=filter==='all'?rGroupedTaskList(groupedBase):rCards(filteredTasks);
-  h+=`<div class="task-desktop-grid"><div class="task-main-col"><div class="clist task-stack" id="taskList">${mainListHtml}</div></div>${rTaskWorkspaceAside()}</div>`;return h;
+  h+=`<div class="task-desktop-grid"><div class="task-main-col"><div class="clist task-stack${filter==='all'?' task-stack-grouped':''}" id="taskList">${mainListHtml}</div></div>${rTaskWorkspaceAside()}</div>`;return h;
 }
 function rCards(list){
   if(!list.length)return`<div class="empty task-empty-nlp"><div class="empty-i">✨</div><div class="empty-t">No tasks yet — try typing <span class="empty-quote">'soccer Tuesday 4pm'</span> in the box above.</div><div class="empty-nlp-arrow" aria-hidden="true">↑</div></div>`;
