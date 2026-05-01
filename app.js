@@ -2079,7 +2079,7 @@ function rTasks(){
   h+=`<div class="task-desktop-grid"><div class="task-main-col"><div class="clist task-stack" id="taskList">${mainListHtml}</div></div>${rTaskWorkspaceAside()}</div>`;return h;
 }
 function rCards(list){
-  if(!list.length)return`<div class="empty"><div class="empty-i">✨</div><div class="empty-t">Nothing here</div></div>`;
+  if(!list.length)return`<div class="empty task-empty-nlp"><div class="empty-i">✨</div><div class="empty-t">No tasks yet — try typing <span class="empty-quote">'soccer Tuesday 4pm'</span> in the box above.</div><div class="empty-nlp-arrow" aria-hidden="true">↑</div></div>`;
   return list.map(r=>{
     const u=urg(r.dueDate),cat=getCategory(r.category),pri=PRIS.find(p=>p.key===r.priority)||PRIS[0];
     const stD=(r.subtasks||[]).filter(s=>s.done).length,stT=(r.subtasks||[]).length;const blocked=!!(r.dependsOn&&R.find(x=>x.id===r.dependsOn && !x.completed));
