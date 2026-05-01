@@ -22,7 +22,7 @@ let R=[],S={...SETTINGS_DEFAULTS},habits=[],shifts=[],timeLogs=[],templates=[],r
 let view="tasks",filter="all",sortBy=localStorage.getItem("rp3_sort")||"date",search=localStorage.getItem("rp3_search")||"",calDate=new Date(),calSel=null,editId=null,notified=new Set();
 let pomoActive=false,pomoId=null,pomoEnd=0,pomoBreak=false,pomoInterval=null;
 let ttActive=null,ttStart=0,ttInterval=null;
-let listening=false,dragId=null,notifInterval=null,searchTimer=null,nlpTimer=null,nlpDraft="";
+let listening=false,dragId=null,notifInterval=null,searchTimer=null,nlpTimer=null,nlpDraft="",nlpParsing=false;
 let batchMode=false,batchSelected=new Set();
 
 function parseJSON(key,fallback){
@@ -800,18 +800,81 @@ window.addEventListener('popstate',function(e){
   else{view='tasks';render()}
 });
 history.replaceState({view:view},'');
-function nlpAdd(){
+async function fetchParsedTasksFromServer(text){
+  const tz=(typeof Intl!=='undefined'&&Intl.DateTimeFormat)?(Intl.DateTimeFormat().resolvedOptions().timeZone||''):'';
+  const base=(typeof chatApiBase==='function')?chatApiBase():'';
+  const url=(base||'')+'/api/parse-tasks';
+  const response=await fetch(url,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      input:text,
+      anchorDate:fmtLD(new Date()),
+      anchorNowIso:new Date().toISOString(),
+      timezone:tz||'UTC'
+    })
+  });
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok){
+    const err=data&&(data.error||data.message)?String(data.error||data.message):('HTTP '+response.status);
+    throw new Error(err);
+  }
+  return Array.isArray(data?.tasks)?data.tasks:[];
+}
+function addTaskFromParsedNlpTask(task){
+  const title=String(task?.title||'').trim().replace(/\s+/g,' ').slice(0,180);
+  if(!title)return null;
+  const notes=String(task?.notes||'').trim().slice(0,4000);
+  const dueRaw=String(task?.due_at||'').trim();
+  const dueMs=dueRaw?Date.parse(dueRaw):NaN;
+  const hasDue=Number.isFinite(dueMs);
+  const rec=normalizeReminder({
+    id:gid(),
+    title:title,
+    notes:notes,
+    dueDate:hasDue?new Date(dueMs).toISOString():UNSCHEDULED_SENTINEL_ISO,
+    startDate:hasDue?new Date(dueMs).toISOString():'',
+    unscheduled:!hasDue,
+    category:'personal',
+    priority:'medium',
+    recurrence:'none',
+    alerts:['15'],
+    tags:['nlp-ai'],
+    sourceMode:'nlp-ai',
+    subtasks:[],
+    completed:false,
+    billable:false,
+    createdAt:new Date().toISOString()
+  },R.length);
+  R.push(rec);
+  return rec;
+}
+async function nlpAdd(){
+  if(nlpParsing)return;
   const text=(nlpDraft||document.getElementById("nlpIn")?.value||"").trim();
-  if(!text){openAdd();return;}
+  if(!text){showToast('Type a task first');return;}
   const inp=document.getElementById("nlpIn");
-  const p=parseNLP(text),d=new Date();
-  if(p.date&&p.time)d.setTime(new Date(p.date+"T"+p.time).getTime());
-  else if(p.date)d.setTime(new Date(p.date+"T09:00").getTime());
-  else d.setTime(Date.now()+3600000);
-  R.push({id:gid(),title:p.title,notes:"",dueDate:d.toISOString(),category:p.cat,priority:p.pri,recurrence:"none",alerts:["15"],tags:[],subtasks:[],completed:false,billable:false,createdAt:new Date().toISOString()});
-  nlpDraft="";
-  if(inp){inp.value="";inp.placeholder="✓ Added!";}
-  setTimeout(()=>{sv();render()},300);
+  nlpParsing=true;
+  render();
+  try{
+    const parsedTasks=await fetchParsedTasksFromServer(text);
+    if(!parsedTasks.length){showToast('I could not find any actionable tasks in that text.');return;}
+    let added=0;
+    parsedTasks.slice(0,25).forEach(t=>{if(addTaskFromParsedNlpTask(t))added++;});
+    if(!added){showToast('No valid tasks were returned. Please try rephrasing.');return;}
+    nlpDraft="";
+    if(inp){inp.value="";inp.placeholder="✓ Added!";}
+    sv();
+    render();
+    showToast(added===1?'Added 1 task':`Added ${added} tasks`);
+  }catch(e){
+    const msg=String(e?.message||'');
+    if(/invalid task json|parse task json|returned invalid/i.test(msg))showToast('Task parsing failed this time. Please try again.');
+    else showToast('Could not parse tasks right now. Please try again.');
+  }finally{
+    nlpParsing=false;
+    render();
+  }
 }
 function queueNlp(v){
   nlpDraft=v;
@@ -1848,7 +1911,7 @@ function rTaskWorkspaceAside(){
 }
 function rTasks(){
   let h=rHdr('Todo Flow','A cleaner place to capture and finish things');
-  h+=`<div class="nlp-bar"><input id="nlpIn" value="${esc(nlpDraft)}" placeholder="Type: 'pay rent Friday 3pm'" oninput="queueNlp(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();nlpAdd()}"><button class="nlp-btn mic${listening?' on':''}" onclick="voiceInput()">🎤</button><button class="nlp-btn add" onclick="nlpAdd()">+</button></div>`;
+  h+=`<div class="nlp-bar"><input id="nlpIn" value="${esc(nlpDraft)}" placeholder="Type: 'pay rent Friday 3pm'" ${nlpParsing?'disabled':''} oninput="queueNlp(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();nlpAdd()}"><button class="nlp-btn mic${listening?' on':''}" ${nlpParsing?'disabled':''} onclick="voiceInput()">🎤</button><button class="nlp-btn add" ${nlpParsing?'disabled':''} onclick="nlpAdd()">${nlpParsing?'⏳':'+'}</button></div>`;
   h+=`<div class="nlp-hint">Natural language, voice, clipboard date detection, long-press actions, and bulk import from text files.</div>`;
   h+=`<div class="search-row" style="padding:8px 14px 0"><input id="searchIn" value="${esc(search)}" placeholder="Search title, notes, tags, or subject" style="width:100%;padding:10px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:12px;background:var(--card);outline:none" oninput="queueSearch(this.value)"></div>`;
   const sug=getSuggestion();
