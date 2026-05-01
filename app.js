@@ -802,6 +802,9 @@ window.addEventListener('popstate',function(e){
 history.replaceState({view:view},'');
 async function fetchParsedTasksFromServer(text){
   const tz=(typeof Intl!=='undefined'&&Intl.DateTimeFormat)?(Intl.DateTimeFormat().resolvedOptions().timeZone||''):'';
+  const userId=(typeof authManager!=='undefined'&&authManager&&typeof authManager.isAuthenticated==='function'&&authManager.isAuthenticated()&&typeof authManager.getUser==='function')
+    ? String(authManager.getUser()?.id||authManager.getUser()?.user_id||'').trim()
+    : '';
   const base=(typeof chatApiBase==='function')?chatApiBase():'';
   const url=(base||'')+'/api/parse-tasks';
   const response=await fetch(url,{
@@ -811,7 +814,8 @@ async function fetchParsedTasksFromServer(text){
       input:text,
       anchorDate:fmtLD(new Date()),
       anchorNowIso:new Date().toISOString(),
-      timezone:tz||'UTC'
+      timezone:tz||'UTC',
+      userId:userId
     })
   });
   const data=await response.json().catch(()=>({}));
@@ -851,8 +855,10 @@ function addTaskFromParsedNlpTask(task){
 }
 async function nlpAdd(){
   if(nlpParsing)return;
-  const text=(nlpDraft||document.getElementById("nlpIn")?.value||"").trim();
-  if(!text){showToast('Type a task first');return;}
+  const rawInput=(nlpDraft||document.getElementById("nlpIn")?.value||"");
+  const text=rawInput.trim();
+  if(!rawInput){openAdd();return;}
+  if(!text||text.length<2){showToast('Type at least 2 characters');return;}
   const inp=document.getElementById("nlpIn");
   nlpParsing=true;
   render();
