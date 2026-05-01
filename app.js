@@ -1917,7 +1917,7 @@ function rTaskWorkspaceAside(){
 }
 function rTasks(){
   let h=rHdr('Todo Flow','A cleaner place to capture and finish things');
-  h+=`<div class="nlp-bar"><input id="nlpIn" value="${esc(nlpDraft)}" placeholder="Type: 'pay rent Friday 3pm'" ${nlpParsing?'disabled':''} oninput="queueNlp(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();nlpAdd()}"><button class="nlp-btn mic${listening?' on':''}" ${nlpParsing?'disabled':''} onclick="voiceInput()">🎤</button><button class="nlp-btn add" ${nlpParsing?'disabled':''} onclick="nlpAdd()">${nlpParsing?'⏳':'+'}</button></div>`;
+  h+=`<div class="nlp-bar"><input id="nlpIn" value="${esc(nlpDraft)}" placeholder="Try: soccer Tuesday 4pm, dentist Friday, pick up milk" ${nlpParsing?'disabled':''} oninput="queueNlp(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();nlpAdd()}"><button class="nlp-btn add" ${nlpParsing?'disabled':''} onclick="openAdd()">${nlpParsing?'⏳':'+'}</button></div>`;
   h+=`<div class="nlp-hint">Natural language, voice, clipboard date detection, long-press actions, and bulk import from text files.</div>`;
   h+=`<div class="search-row" style="padding:8px 14px 0"><input id="searchIn" value="${esc(search)}" placeholder="Search title, notes, tags, or subject" style="width:100%;padding:10px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:12px;background:var(--card);outline:none" oninput="queueSearch(this.value)"></div>`;
   const sug=getSuggestion();
@@ -4323,18 +4323,21 @@ function checkDueNowBanner(){
     appendDryRunAssistantNote('Canceled. No changes were made.');
   };
   
-  // Add chat button after page loads
-  setTimeout(function() {
-    if (document.getElementById('chat-btn')) return;
-    const btn = document.createElement('button');
-    btn.id = 'chat-btn';
-    btn.textContent = '💬 Chat';
-    btn.style.cssText = 'position:fixed;top:18px;right:18px;background:#7C3AED;color:#fff;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;z-index:80;font-family:DM Sans';
-    btn.onclick = openChatModal;
-    document.body.appendChild(btn);
-  }, 1000);
+  const CHAT_UI_ENABLED = false; // v1: keep chat code, hide UI
+  if (CHAT_UI_ENABLED) {
+    setTimeout(function() {
+      if (document.getElementById('chat-btn')) return;
+      const btn = document.createElement('button');
+      btn.id = 'chat-btn';
+      btn.textContent = '💬 Chat';
+      btn.style.cssText = 'position:fixed;top:18px;right:18px;background:#7C3AED;color:#fff;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;z-index:80;font-family:DM Sans';
+      btn.onclick = openChatModal;
+      document.body.appendChild(btn);
+    }, 1000);
+  }
   
   function openChatModal() {
+    if (!CHAT_UI_ENABLED) return;
     if (document.getElementById('chat-modal')) return;
     const modal = document.createElement('div');
     modal.id = 'chat-modal';
