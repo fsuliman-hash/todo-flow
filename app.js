@@ -825,6 +825,29 @@ async function fetchParsedTasksFromServer(text){
   }
   return Array.isArray(data?.tasks)?data.tasks:[];
 }
+function extractExplicitWeekday(text){
+  const t=String(text||'').toLowerCase();
+  const days=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  const found=days.map((d,i)=>({d,i,has:new RegExp(`\\b${d}\\b`,'i').test(t)})).filter(x=>x.has);
+  if(found.length!==1)return -1;
+  return found[0].i;
+}
+function forceTaskDueToExplicitWeekday(task,inputText){
+  const targetDay=extractExplicitWeekday(inputText);
+  if(targetDay<0)return task;
+  const dueRaw=String(task?.due_at||'').trim();
+  if(!dueRaw)return task;
+  const due=new Date(dueRaw);
+  if(Number.isNaN(due.getTime()))return task;
+  if(due.getDay()===targetDay)return task;
+  const now=new Date();
+  const fixed=new Date(now);
+  fixed.setHours(due.getHours(),due.getMinutes(),0,0);
+  let shift=(targetDay-fixed.getDay()+7)%7;
+  if(shift===0&&fixed.getTime()<now.getTime())shift=7;
+  fixed.setDate(fixed.getDate()+shift);
+  return {...task,due_at:fixed.toISOString()};
+}
 function addTaskFromParsedNlpTask(task){
   const title=String(task?.title||'').trim().replace(/\s+/g,' ').slice(0,180);
   if(!title)return null;
@@ -863,7 +886,8 @@ async function nlpAdd(){
   nlpParsing=true;
   render();
   try{
-    const parsedTasks=await fetchParsedTasksFromServer(text);
+    let parsedTasks=await fetchParsedTasksFromServer(text);
+    if(parsedTasks.length===1)parsedTasks=[forceTaskDueToExplicitWeekday(parsedTasks[0],text)];
     if(!parsedTasks.length){showToast('I could not find any actionable tasks in that text.');return;}
     let added=0;
     parsedTasks.slice(0,25).forEach(t=>{if(addTaskFromParsedNlpTask(t))added++;});
