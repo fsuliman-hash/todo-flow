@@ -832,6 +832,35 @@ function extractExplicitWeekday(text){
   if(found.length!==1)return -1;
   return found[0].i;
 }
+function editDistance(a,b){
+  const s=String(a||''),t=String(b||'');
+  const m=s.length,n=t.length;
+  const dp=Array.from({length:m+1},()=>Array(n+1).fill(0));
+  for(let i=0;i<=m;i++)dp[i][0]=i;
+  for(let j=0;j<=n;j++)dp[0][j]=j;
+  for(let i=1;i<=m;i++){
+    for(let j=1;j<=n;j++){
+      const cost=s[i-1]===t[j-1]?0:1;
+      dp[i][j]=Math.min(dp[i-1][j]+1,dp[i][j-1]+1,dp[i-1][j-1]+cost);
+    }
+  }
+  return dp[m][n];
+}
+function normalizeWeekdayTypos(text){
+  const days=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  return String(text||'').replace(/\b([a-z]{4,12}day)\b/gi,(raw)=>{
+    const token=String(raw||'').toLowerCase();
+    if(days.includes(token))return raw;
+    let best='';
+    let bestDist=99;
+    days.forEach((d)=>{
+      const dist=editDistance(token,d);
+      if(dist<bestDist){bestDist=dist;best=d;}
+    });
+    if(best&&bestDist<=3)return best;
+    return raw;
+  });
+}
 function forceTaskDueToExplicitWeekday(task,inputText){
   const targetDay=extractExplicitWeekday(inputText);
   if(targetDay<0)return task;
@@ -879,7 +908,8 @@ function addTaskFromParsedNlpTask(task){
 async function nlpAdd(){
   if(nlpParsing)return;
   const rawInput=(nlpDraft||document.getElementById("nlpIn")?.value||"");
-  const text=rawInput.trim();
+  const normalizedInput=normalizeWeekdayTypos(rawInput);
+  const text=normalizedInput.trim();
   if(!rawInput){openAdd();return;}
   if(!text||text.length<2){showToast('Type at least 2 characters');return;}
   const inp=document.getElementById("nlpIn");
