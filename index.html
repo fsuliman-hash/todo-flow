@@ -55,6 +55,11 @@ button{cursor:pointer}
 .sort-row{padding:2px var(--container-pad) 0;display:flex;justify-content:space-between;align-items:center}
 .sort-row span{font-size:11px;color:var(--text3);font-weight:500}
 .sort-row select{font-size:11px;border:1px solid var(--border);border-radius:6px;padding:3px 6px;background:var(--card);color:var(--text2);font-weight:600}
+.task-filters-wrap{padding:8px var(--container-pad) 0}
+.task-filters-toggle{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;text-align:left;box-sizing:border-box}
+.task-filters-chev{opacity:.65;font-size:11px;line-height:1}
+.task-filters-panel .task-filter-head{padding-top:2px}
+.task-filters-panel .filters.task-cat-row{padding-top:8px;padding-bottom:2px}
 .search-row{padding:8px var(--container-pad) 0}.search-row input{width:100%;padding:10px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:12px;background:var(--card);outline:none}
 .clist{padding:8px var(--container-pad) calc(72px + env(safe-area-inset-bottom,0px))}
 .card{background:var(--card);border-radius:16px;padding:13px 14px;margin-bottom:10px;border:1.5px solid var(--border);transition:all .3s;touch-action:pan-y}
@@ -250,7 +255,7 @@ body{background:linear-gradient(180deg,var(--bg),var(--bg2));font-size:15px;line
 .hdr-btn{width:38px;height:38px;background:rgba(255,255,255,.14);backdrop-filter:blur(8px)}
 .hdr-btn.theme-toggle{min-width:82px;width:auto;padding:0 12px;border-radius:999px;font-size:12px;font-weight:700;gap:6px}
 .stats-row{gap:8px}.stat{padding:8px 12px;border-radius:12px}.stat-n{font-size:17px}.stat-l{font-size:9px}
-.nlp-bar,.search-row,.task-filter-head,.filters,.sort-row,.settings,.cal,.timeline,.sv,.dash-grid,.kid-tabs,.coach-banner,.prod-toolbar{padding-left:16px;padding-right:16px}
+.nlp-bar,.search-row,.task-filters-wrap,.task-filter-head,.filters,.sort-row,.settings,.cal,.timeline,.sv,.dash-grid,.kid-tabs,.coach-banner,.prod-toolbar{padding-left:16px;padding-right:16px}
 .nlp-bar{margin-top:12px}.nlp-bar input,.search-row input,.finp,.frow input,.frow select,select.finp{min-height:46px;border-radius:14px;font-size:14px}
 .nlp-btn{width:50px;height:50px;border-radius:14px;font-weight:800;box-shadow:var(--shadow-card);font-size:19px}
 .filters{gap:8px}.fbtn,.chip-btn,.lane-pill{padding:8px 13px;font-size:11px;border-radius:999px}
