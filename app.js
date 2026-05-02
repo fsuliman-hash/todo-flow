@@ -1159,6 +1159,28 @@ function toggleBatch(id,checked){if(checked)batchSelected.add(id);else batchSele
 function batchDone(){batchSelected.forEach(id=>{const r=R.find(x=>x.id===id);if(r){r.completed=true;r.completedAt=new Date().toISOString()}});batchMode=false;batchSelected.clear();sv();render()}
 function batchDel(){batchSelected.forEach(id=>delR(id));batchMode=false;batchSelected.clear();sv();render()}
 function toggleTasksBatch(id,checked){if(checked)tasksBatchSelected.add(id);else tasksBatchSelected.delete(id);render()}
+function toggleTasksBatchToggle(id){
+  if(tasksBatchSelected.has(id))tasksBatchSelected.delete(id);else tasksBatchSelected.add(id);
+  render();
+}
+function taskCardBodyBatchTap(e,id){
+  if(!tasksBatchMode||view!=='tasks')return;
+  if(e.target.closest('button')||e.target.closest('a')||e.target.closest('label.task-batch-pick'))return;
+  e.preventDefault();
+  toggleTasksBatchToggle(id);
+}
+function selectTasksBatchGroup(kind){
+  if(view!=='tasks'||filter!=='all')return;
+  const base=getTasksForGroupedMainView();
+  const g=groupTasksForMainView(base);
+  let ids=[];
+  if(kind==='overdue')ids=g.overdue.map(r=>r.id);
+  else if(kind==='completed')ids=g.completed.map(r=>r.id);
+  else return;
+  ids.forEach(id=>tasksBatchSelected.add(id));
+  render();
+  showToast(ids.length?`${ids.length} selected`:'None in this group');
+}
 function selectAllVisibleTasksForBatch(){
   const list=filter==='all'?getTasksForGroupedMainView():getFiltered();
   list.forEach(r=>tasksBatchSelected.add(r.id));
@@ -1172,8 +1194,24 @@ function tasksBatchDone(){
 function tasksBatchDel(){
   const n=tasksBatchSelected.size;
   if(!n)return;
-  tasksBatchSelected.forEach(id=>delR(id));
-  tasksBatchMode=false;tasksBatchSelected.clear();sv();render();showToast(n===1?'1 task deleted':`${n} tasks deleted`);
+  const msg=n===1?'Delete 1 task? This cannot be undone.':`Delete ${n} tasks? This cannot be undone.`;
+  if(!confirm(msg))return;
+  const ids=[...tasksBatchSelected];
+  ids.forEach(id=>{
+    const r=R.find(x=>x.id===id);
+    if(!r)return;
+    r.deletedAt=new Date().toISOString();
+    trash.push({...r});
+    R=R.filter(x=>x.id!==id);
+    clearReminderKeys(id);
+    deleteTaskOnSupabaseIfAuthed(id);
+  });
+  reindexOrders(false);
+  tasksBatchMode=false;
+  tasksBatchSelected.clear();
+  sv();
+  render();
+  showToast(n===1?'1 task deleted':`${n} tasks deleted`);
 }
 function exitTasksBatch(){tasksBatchMode=false;tasksBatchSelected.clear();render()}
 
@@ -2091,7 +2129,8 @@ function rTaskSection(title,items,opts={}){
   const variant=opts.variant||'';
   if(!items.length)return'';
   const headCls=`task-sec-head${variant?` task-sec-${variant}`:''}`;
-  return`<div class="task-sec"><div class="${headCls}">${esc(title)}</div><div class="task-sec-cards">${rCards(items)}</div></div>`;
+  const batchBtn=tasksBatchMode&&view==='tasks'&&opts.batchSelect==='overdue'?`<button type="button" class="chip-btn task-sec-batch-btn" onclick="event.stopPropagation();selectTasksBatchGroup('overdue')">Select all overdue</button>`:'';
+  return`<div class="task-sec"><div class="${headCls}${batchBtn?' task-sec-head-flex':''}"><span class="task-sec-head-t">${esc(title)}</span>${batchBtn}</div><div class="task-sec-cards">${rCards(items)}</div></div>`;
 }
 function rGroupedTaskList(baseList){
   if(filter!=='all')return rCards(baseList);
@@ -2099,12 +2138,13 @@ function rGroupedTaskList(baseList){
   const completedSorted=g.completed.slice().sort((a,b)=>new Date(b.completedAt||b.createdAt||0)-new Date(a.completedAt||a.createdAt||0));
   const completedPreview=completedSorted.slice(0,5);
   let h='';
-  h+=rTaskSection('Overdue',g.overdue,{variant:'overdue'});
+  h+=rTaskSection('Overdue',g.overdue,{variant:'overdue',batchSelect:'overdue'});
   h+=rTaskSection('Today',g.today);
   h+=rTaskSection('Upcoming',g.upcoming);
   if(completedSorted.length){
     const label=completedSectionExpanded?`Hide completed (${completedSorted.length})`:`Show ${Math.min(5,completedSorted.length)} completed`;
-    h+=`<div class="task-sec"><div class="task-sec-head task-sec-completed"><span>Completed</span><button type="button" class="task-sec-toggle" onclick="toggleCompletedSection()">${esc(label)}</button></div><div class="task-sec-cards">`;
+    const batchCompletedBtn=tasksBatchMode&&view==='tasks'?`<button type="button" class="chip-btn task-sec-batch-btn" onclick="event.stopPropagation();selectTasksBatchGroup('completed')">Select all completed</button>`:'';
+    h+=`<div class="task-sec"><div class="task-sec-head task-sec-completed"><span>Completed</span><div class="task-sec-completed-actions">${batchCompletedBtn}<button type="button" class="task-sec-toggle" onclick="toggleCompletedSection()">${esc(label)}</button></div></div><div class="task-sec-cards">`;
     h+=rCards(completedSectionExpanded?completedSorted:completedPreview);
     h+=`</div></div>`;
   }
@@ -2148,7 +2188,7 @@ function rTasks(){
   h+=`<button class="fbtn" onclick="go('settings');setTimeout(()=>document.getElementById('catManage')?.scrollIntoView({behavior:'smooth',block:'start'}),120)">⚙ Manage categories</button></div></div></div><div class="sort-row"><span id="taskCountLabel">${listCount} items${sortBy==='manual'?' · drag to reorder':''}</span><select onchange="setSort(this.value)"><option value="date"${sortBy==='date'?' selected':''}>Date</option><option value="priority"${sortBy==='priority'?' selected':''}>Priority</option><option value="name"${sortBy==='name'?' selected':''}>A-Z</option><option value="manual"${sortBy==='manual'?' selected':''}>Manual</option></select></div>`;
   if(tasksBatchMode){
     const n=tasksBatchSelected.size;
-    h+=`<div class="task-batch-toolbar safe-row" style="padding:8px 14px 4px;align-items:center;gap:8px"><span style="font-size:12px;font-weight:700;color:var(--text3)">${n} selected</span><button type="button" class="chip-btn" onclick="selectAllVisibleTasksForBatch()">All in view</button><button type="button" class="chip-btn" style="background:var(--green);color:#fff;border-color:transparent" onclick="tasksBatchDone()">Done</button><button type="button" class="chip-btn" style="background:var(--red);color:#fff;border-color:transparent" onclick="tasksBatchDel()">Delete</button><button type="button" class="chip-btn" onclick="exitTasksBatch()">Cancel</button></div>`;
+    h+=`<div class="task-batch-toolbar safe-row" style="padding:8px 14px 4px;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:12px;font-weight:700;color:var(--text3)">${n} selected</span><button type="button" class="chip-btn" onclick="selectAllVisibleTasksForBatch()">All in view</button><button type="button" class="chip-btn" style="background:var(--green);color:#fff;border-color:transparent" onclick="tasksBatchDone()">Done</button><button type="button" class="chip-btn" style="background:var(--red);color:#fff;border-color:transparent" onclick="tasksBatchDel()" ${n===0?'disabled':''}>Delete (${n})</button><button type="button" class="chip-btn" onclick="exitTasksBatch()">Cancel</button></div>`;
   }else{
     h+=`<div class="task-batch-toolbar" style="padding:4px 14px 0"><button type="button" class="chip-btn" onclick="tasksBatchMode=true;tasksBatchSelected.clear();render()">Select tasks</button></div>`;
   }
@@ -2164,13 +2204,13 @@ function rCards(list){
     const overdueBadge=u==='overdue'&&!r.completed?'<span class="cbdg bdg-overdue-label">Overdue</span>':'';
     const dueHuman=fmtTaskDueHuman(r.dueDate);
     const dueLineCls='cdate-line'+(dueHuman==='No date'?' cdate-muted':'');
-    return`<div class="card pri-${r.priority||'low'}${r.completed?' completed':''}" data-task-id="${r.id}" draggable="${tasksBatchMode&&view==='tasks'?'false':'true'}" ondragstart="dragS(event,'${r.id}')" ondragover="dragO(event)" ondragleave="this.classList.remove('drag-over')" ondrop="dragD(event,'${r.id}')" ontouchstart="taskTouchStart(event,'${r.id}')" ontouchmove="taskTouchMove(event,'${r.id}')" ontouchend="taskTouchEnd(event,'${r.id}')" ontouchcancel="taskTouchCancel(event,'${r.id}')" oncontextmenu="event.preventDefault();openTaskMenu('${r.id}')">
+    return`<div class="card pri-${r.priority||'low'}${r.completed?' completed':''}${tasksBatchMode&&view==='tasks'&&tasksBatchSelected.has(r.id)?' task-card-batch-selected':''}" data-task-id="${r.id}" draggable="${tasksBatchMode&&view==='tasks'?'false':'true'}" ondragstart="dragS(event,'${r.id}')" ondragover="dragO(event)" ondragleave="this.classList.remove('drag-over')" ondrop="dragD(event,'${r.id}')" ontouchstart="taskTouchStart(event,'${r.id}')" ontouchmove="taskTouchMove(event,'${r.id}')" ontouchend="taskTouchEnd(event,'${r.id}')" ontouchcancel="taskTouchCancel(event,'${r.id}')" oncontextmenu="event.preventDefault();openTaskMenu('${r.id}')">
       <div class="crow">
         ${tasksBatchMode&&view==='tasks'?`<label class="task-batch-pick" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Select task" ${tasksBatchSelected.has(r.id)?'checked':''} onchange="toggleTasksBatch('${r.id}',this.checked)"></label>`:''}<span class="drag-handle">⠿</span>
         <button class="chk${r.completed?' on':''}" onclick="${blocked?"alert('Complete the dependency first!')":"toggleComp('"+r.id+"')"}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></button>
-        <div class="cbody">
+        <div class="cbody"${tasksBatchMode&&view==='tasks'?' style="cursor:pointer" onclick="taskCardBodyBatchTap(event,\''+r.id+'\')"':''}>
           <div class="ctop"><span class="cbadge" style="${categoryBadgeStyle(cat)}">${cat.icon} ${cat.label}</span>${taskSourceBadge(r)}${r.pinned?'<span class="ctag">📌 pinned</span>':''}${isInTop3(r.id)?'<span class="ctag">⭐ top 3</span>':''}${r.nag?'<span class="ctag">🔔 nag</span>':''}${r.bundle?`<span class="ctag">${esc(bundleLabel(r.bundle))}</span>`:''}${kid?`<span class="ctag">${esc(kid.icon)} ${esc(kid.name)}</span>`:''}${(r.tags||[]).slice(0,2).map(t=>`<span class="ctag">#${esc(t)}</span>`).join('')}</div>
-          <div class="ctitle" onclick="event.stopPropagation();openEdit('${r.id}')" style="cursor:pointer">${esc(r.title)}</div>
+          <div class="ctitle" onclick="event.stopPropagation();${tasksBatchMode&&view==='tasks'?'toggleTasksBatchToggle(\''+r.id+'\')':'openEdit(\''+r.id+'\')'}" style="cursor:pointer">${esc(r.title)}</div>
           ${r.notes?`<div class="cnotes">${esc(r.notes.length>110?r.notes.slice(0,110)+'...':r.notes)}</div>`:''}
           ${blocked?`<div class="cdep">🔗 Blocked by: ${esc(R.find(x=>x.id===r.dependsOn)?.title||'?')}</div>`:''}
           ${r.subject?`<div class="ctime">📚 ${esc(r.subject)}${r.grade?` · ${esc(r.grade)}`:''}</div>`:''}
