@@ -17,6 +17,9 @@ class SyncManager {
     this._didUploadSucceedLastRun = false;
   }
 
+  /** Backoff still runs; countdown text only after this many consecutive failures (reduces noisy pill on flaky networks). */
+  static RETRY_BADGE_MIN_FAILS = 4;
+
   _clearRetryUiTimer() {
     if (this._retryUiTimer) {
       clearInterval(this._retryUiTimer);
@@ -26,6 +29,7 @@ class SyncManager {
 
   _scheduleRetryStatusUpdates() {
     this._clearRetryUiTimer();
+    if (this.failCount < SyncManager.RETRY_BADGE_MIN_FAILS) return;
     if (!this.nextRetryAt || Date.now() >= this.nextRetryAt) return;
     this._retryUiTimer = setInterval(() => {
       if (!this.nextRetryAt || Date.now() >= this.nextRetryAt) {
@@ -60,8 +64,10 @@ class SyncManager {
     if (!authManager.isAuthenticated()) return 'offline';
     if (this.syncing) return 'syncing';
     if (this.nextRetryAt && Date.now() < this.nextRetryAt) {
-      const waitSec = Math.max(1, Math.ceil((this.nextRetryAt - Date.now()) / 1000));
-      return `retry in ${waitSec}s`;
+      if (this.failCount >= SyncManager.RETRY_BADGE_MIN_FAILS) {
+        const waitSec = Math.max(1, Math.ceil((this.nextRetryAt - Date.now()) / 1000));
+        return `retry in ${waitSec}s`;
+      }
     }
     if (!this.lastSync) return 'never';
     const mins = Math.floor((Date.now() - this.lastSync) / 60000);
