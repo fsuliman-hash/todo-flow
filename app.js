@@ -809,6 +809,7 @@ function rStats(){
 
 // ==================== ACTIONS ====================
 function go(v){
+  if(!isViewEnabled(v)){showToast('That screen is off in this build.');return;}
   const prev=view;
   view=v;
   if(prev!==v)history.pushState({view:v},'',(location.pathname+location.search));
@@ -1390,10 +1391,33 @@ const THEME_PRESETS={
   teal:{accent:"#0D9488",accent2:"#14B8A6",abg:"rgba(13,148,136,.10)"}
 };
 const NAV_LIBRARY=[
-  {k:"tasks",l:"Tasks",i:"✅"},{k:"myday",l:"My Day",i:"☀️"},{k:"dashboard",l:"Home",i:"🏠"},{k:"habits",l:"Habits",i:"🔥"},
-  {k:"kids",l:"Kids",i:"👨‍👩‍👧"},{k:"health",l:"Health",i:"🩺"},{k:"shifts",l:"Shifts",i:"🏗️"},{k:"money",l:"Money",i:"💰"},
-  {k:"timeline",l:"Timeline",i:"🕒"}
+  {k:"tasks",l:"Tasks",i:"✅"},{k:"myday",l:"My Day",i:"☀️"},{k:"dashboard",l:"Home",i:"🏠"},{k:"calendar",l:"Calendar",i:"🗓️"},
+  {k:"habits",l:"Habits",i:"🔥"},{k:"kids",l:"Kids",i:"👨‍👩‍👧"},{k:"health",l:"Health",i:"🩺"},{k:"shifts",l:"Shifts",i:"🏗️"},
+  {k:"money",l:"Money",i:"💰"},{k:"timeline",l:"Timeline",i:"🕒"}
 ];
+
+/** Layer 1: Primary bottom nav = Tasks + Home + My Day + Calendar only; More + go() respect layer 2. */
+const APP_SHELL_MINIMAL=true;
+/** Layer 2: When APP_SHELL_MINIMAL, only keys set true appear in More (besides the four primary). When false, missing keys default open. */
+const FEATURE_VIEW={
+  tasks:true,dashboard:true,myday:true,calendar:true,
+  settings:true,trash:true,
+  timeline:false,weekly:false,matrix:false,whatnow:false,
+  habits:false,routines:false,shifts:false,time:false,
+  money:false,bills:false,prayers:false,kids:false,health:false,
+  water:false,dispatch:false,templates:false,stats:false,
+};
+const PRIMARY_NAV_KEYS=["tasks","dashboard","myday","calendar"];
+function isViewEnabled(k){
+  if(APP_SHELL_MINIMAL){
+    if(PRIMARY_NAV_KEYS.includes(k))return true;
+    return FEATURE_VIEW[k]===true;
+  }
+  return FEATURE_VIEW[k]!==false;
+}
+function navLibraryForChooser(){
+  return APP_SHELL_MINIMAL?NAV_LIBRARY.filter(n=>PRIMARY_NAV_KEYS.includes(n.k)):NAV_LIBRARY.filter(n=>isViewEnabled(n.k));
+}
 let X={};
 let touchState={id:null,x:0,y:0,t:0,timer:null,menuOpened:false,cancelled:false};
 let activeKidId="",lastCompletionState=null,prayerSyncing=false;
@@ -1402,7 +1426,7 @@ function defaultExtras(){
   return {
     themeColor:"amber",
     bigTap:false,
-    navTabs:["tasks","dashboard","myday","shifts"],
+    navTabs:["tasks","dashboard","myday","calendar"],
     payPeriodAnchor:"2026-01-01",
     morningCatchupShown:{},
     weeklyResetShown:{},
@@ -1562,8 +1586,13 @@ function normalizeAll(){
   timeLogs=Array.isArray(timeLogs)?timeLogs.map(l=>({id:l?.id||gid(),taskId:l?.taskId||null,title:String(l?.title||"Unknown"),duration:Math.max(0,Number(l?.duration)||0),date:l?.date||new Date().toISOString(),clientId:String(l?.clientId||""),taxTag:String(l?.taxTag||"general")})):[];
   templates=(Array.isArray(templates)?templates:[]).map(normalizeTemplate).filter(t=>t.name);
   routines=Array.isArray(routines)?routines:[];
-  X.navTabs=(Array.isArray(X.navTabs)?X.navTabs:["tasks","dashboard","myday","shifts"]).filter(v=>NAV_LIBRARY.some(n=>n.k===v)).slice(0,4);
-  while(X.navTabs.length<4){const next=NAV_LIBRARY.find(n=>!X.navTabs.includes(n.k));if(!next)break;X.navTabs.push(next.k)}
+  if(APP_SHELL_MINIMAL){
+    X.navTabs=PRIMARY_NAV_KEYS.slice();
+  }else{
+    X.navTabs=(Array.isArray(X.navTabs)?X.navTabs:["tasks","dashboard","myday","calendar"]).filter(v=>NAV_LIBRARY.some(n=>n.k===v)&&isViewEnabled(v)).slice(0,4);
+    while(X.navTabs.length<4){const next=NAV_LIBRARY.find(n=>!X.navTabs.includes(n.k)&&isViewEnabled(n));if(!next)break;X.navTabs.push(next.k)}
+  }
+  if(!isViewEnabled(view))view='tasks';
   X.children=normChildren(X.children);
   if(!activeKidId&&X.children[0])activeKidId=X.children[0].id;
   X.readingLogs=Array.isArray(X.readingLogs)?X.readingLogs.map(x=>({id:x?.id||gid(),childId:String(x?.childId||""),date:x?.date||new Date().toISOString(),minutes:normNumber(x?.minutes,0),lesson:String(x?.lesson||""),notes:String(x?.notes||"")})):[];
@@ -1795,6 +1824,7 @@ function buildProductivityPlan(opts={}){const minutes=Math.max(10,Math.min(180,N
 function openPowerHourPlan(){const plan=buildProductivityPlan();const ov=document.createElement('div');ov.className='mo';ov.onclick=e=>{if(e.target===ov)ov.remove()};ov.innerHTML=`<div class="mo-in" onclick="event.stopPropagation()"><div class="mo-h"></div><h3>${plan.minutes}-minute plan</h3><div class="sdesc">${esc(plan.coach.body)}</div><div class="focus-queue" style="margin-top:12px">${plan.queue.length?plan.queue.map((task,i)=>`<div class="focus-step"><b>${i+1}. ${esc(task.title)}</b><span>${esc(getCategory(task.category).icon)} ${esc(getCategory(task.category).label)} · ~${task.effort} min · ${esc(task.reasons.join(' • ')||'good fit')}</span><div class="safe-row" style="margin-top:8px"><button class="chip-btn" onclick="openFocus('${task.id}')">Focus</button><button class="chip-btn" onclick="openEdit('${task.id}')">Edit</button></div></div>`).join(''):'<div class="sdesc">No tasks fit this plan yet.</div>'}</div><div class="safe-row" style="margin-top:14px"><button class="xbtn" onclick="setFocusStyle('quick')">Quick wins</button><button class="xbtn" onclick="setFocusStyle('deep')">Deep work</button><button class="xbtn" onclick="this.closest('.mo').remove()">Close</button></div></div>`;document.body.appendChild(ov)}
 function openRecoveryPlan(){const plan=buildProductivityPlan({style:'quick',minutes:20});const ov=document.createElement('div');ov.className='mo';ov.onclick=e=>{if(e.target===ov)ov.remove()};ov.innerHTML=`<div class="mo-in" onclick="event.stopPropagation()"><div class="mo-h"></div><h3>Momentum reset</h3><div class="sdesc">When the list feels heavy, start with the easiest overdue wins. No bulk changes are made automatically.</div>${plan.recovery.length?plan.recovery.map(task=>`<div class="list-row"><div class="list-main"><b>${esc(task.title)}</b><span>${fmtD(task.dueDate)} · ~${task.effort} min</span></div><div style="display:flex;gap:6px"><button class="cact" onclick="openFocus('${task.id}')">🎯</button><button class="cact" onclick="openSnooze('${task.id}')">💤</button></div></div>`).join(''):'<div class="sdesc" style="margin-top:12px">No overdue tasks right now.</div>'}<div class="safe-row" style="margin-top:14px"><button class="xbtn" onclick="go('myday');this.closest('.mo').remove()">Open My Day</button></div></div>`;document.body.appendChild(ov)}
 function render(){
+  if(!isViewEnabled(view))view='tasks';
   if(view!=="tasks"||filter!=="all")completedSectionExpanded=false;
   let h="";
   if(view==="tasks")h=rTasks();else if(view==="myday")h=rMyDay();else if(view==="calendar")h=rCal();
@@ -1844,9 +1874,9 @@ function openMore(){
       {k:"settings",i:"⚙️",l:"Settings",d:'Theme, categories, backup, and import/export'},
       {k:"trash",i:"🗑️",l:"Trash",d:'Recover deleted items'}
     ]}
-  ];
+  ].map(g=>({...g,items:g.items.filter(t=>isViewEnabled(t.k)&&(APP_SHELL_MINIMAL?!PRIMARY_NAV_KEYS.includes(t.k):true))})).filter(g=>g.items.length);
   const ov=document.createElement('div');ov.className='mo';ov.id='moreM';ov.onclick=e=>{if(e.target===ov)ov.remove()};
-  ov.innerHTML=`<div class="mo-in" onclick="event.stopPropagation()"><div class="mo-h"></div><h3>Browse modules</h3><div class="sdesc" style="margin-bottom:12px">Everything is grouped so it feels more like an app drawer than a long luggage list.</div>${groups.map(g=>`<div class="more-group"><div class="flbl" style="margin-bottom:8px">${g.title}</div><div class="more-grid">${g.items.map(t=>`<button class="more-card" onclick="go('${t.k}');document.getElementById('moreM').remove()"><div class="more-card-top"><span class="more-emoji">${t.i}</span><b>${t.l}</b></div><span>${t.d}</span></button>`).join('')}</div></div>`).join('')}</div>`;
+  ov.innerHTML=`<div class="mo-in" onclick="event.stopPropagation()"><div class="mo-h"></div><h3>Browse modules</h3><div class="sdesc" style="margin-bottom:12px">${groups.length?'Everything is grouped so it feels more like an app drawer than a long luggage list.':'More modules are hidden in this build. Use Settings from the gear if available.'}</div>${groups.map(g=>`<div class="more-group"><div class="flbl" style="margin-bottom:8px">${g.title}</div><div class="more-grid">${g.items.map(t=>`<button class="more-card" onclick="go('${t.k}');document.getElementById('moreM').remove()"><div class="more-card-top"><span class="more-emoji">${t.i}</span><b>${t.l}</b></div><span>${t.d}</span></button>`).join('')}</div></div>`).join('')}</div>`;
   document.body.appendChild(ov);
 }
 function rDashboard(){
@@ -2432,7 +2462,7 @@ function rSettings(){
   h+=`<div class="sitem"><div><div class="slbl">Bigger tap targets</div><div class="sdesc">Better one-handed use</div></div><button class="tog${X.bigTap?' on':''}" onclick="X.bigTap=!X.bigTap;applyTheme();sv();render()"></button></div>`;
   h+=`<div style="margin-top:14px"><div class="slbl" style="margin-bottom:8px">Task complete animation</div><div class="safe-row"><button class="chip-btn${S.completionAnimSpeed==='fast'?' on':''}" onclick="S.completionAnimSpeed='fast';sv(false);render();showToast('Completion speed: fast')">Fast</button><button class="chip-btn${(!S.completionAnimSpeed||S.completionAnimSpeed==='normal')?' on':''}" onclick="S.completionAnimSpeed='normal';sv(false);render();showToast('Completion speed: normal')">Normal</button><button class="chip-btn${S.completionAnimSpeed==='slow'?' on':''}" onclick="S.completionAnimSpeed='slow';sv(false);render();showToast('Completion speed: slow')">Slow</button><button class="xbtn" onclick="previewCompletionAnimation()">Preview</button></div><div id="tf-completion-preview" class="card pri-medium" style="margin:10px 0 0;padding:10px 12px;pointer-events:none"><div class="crow"><button class="chk on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></button><div class="cbody"><div class="ctitle">Sample completed task</div><div class="cmeta"><span class="cdate">Preview speed</span></div></div></div></div></div>`;
   h+=`<div style="margin-top:16px"><div class="slbl" style="margin-bottom:8px">Accent Color</div><div class="safe-row">${Object.keys(THEME_PRESETS).map(k=>`<button class="chip-btn${X.themeColor===k?' on':''}" onclick="setThemeColor('${k}')">${k}</button>`).join('')}</div></div>`;
-  h+=`<div style="margin-top:16px"><div class="slbl" style="margin-bottom:8px">Bottom Nav</div><div class="sdesc" style="margin-bottom:8px">Pick a slot, then tap any icon below to assign it.</div><div class="nav-slot-grid">${(X.navTabs||[]).slice(0,4).map((k,i)=>{const item=NAV_LIBRARY.find(n=>n.k===k)||NAV_LIBRARY[0];return `<button class="nav-slot${(X.navEditSlot??0)===i?' active':''}" onclick="selectNavSlot(${i})"><small>Slot ${i+1}</small><b>${item.i} ${esc(item.l)}</b></button>`}).join('')}</div><div class="nav-chooser">${NAV_LIBRARY.map(n=>`<button class="nav-choice${X.navTabs.includes(n.k)?' on':''}" onclick="assignNavTab('${n.k}')">${n.i} ${esc(n.l)}</button>`).join('')}</div></div>`;
+  h+=`<div style="margin-top:16px"><div class="slbl" style="margin-bottom:8px">Bottom Nav</div><div class="sdesc" style="margin-bottom:8px">${APP_SHELL_MINIMAL?'This build uses fixed shortcuts: Tasks · Home · My Day · Calendar.':'Pick a slot, then tap any icon below to assign it.'}</div><div class="nav-slot-grid">${(X.navTabs||[]).slice(0,4).map((k,i)=>{const item=NAV_LIBRARY.find(n=>n.k===k)||NAV_LIBRARY[0];return `<button class="nav-slot${(X.navEditSlot??0)===i?' active':''}" onclick="selectNavSlot(${i})"${APP_SHELL_MINIMAL?' disabled style="opacity:.55"':''}><small>Slot ${i+1}</small><b>${item.i} ${esc(item.l)}</b></button>`}).join('')}</div>${APP_SHELL_MINIMAL?'':`<div class="nav-chooser">${navLibraryForChooser().map(n=>`<button class="nav-choice${X.navTabs.includes(n.k)?' on':''}" onclick="assignNavTab('${n.k}')">${n.i} ${esc(n.l)}</button>`).join('')}</div>`}</div>`;
   h+=`<div class="panel" id="catManage"><h3>Task categories</h3><div class="sdesc" style="margin-bottom:10px">Add, edit, or remove custom categories for your workflow.</div>${CATS.map(c=>`<div class="list-row"><div class="list-main"><b>${c.icon} ${esc(c.label)}</b><span>${esc(c.key)}${isCustomCategory(c.key)?' · custom':' · default'}</span></div><div class="safe-row"><button class="xbtn" onclick="editTaskCategory('${c.key}')">Edit</button>${isCustomCategory(c.key)?`<button class="xbtn" style="color:var(--red);border-color:rgba(220,38,38,.25)" onclick="deleteTaskCategory('${c.key}')">Remove</button>`:''}</div></div>`).join('')}<div class="safe-row" style="margin-top:10px"><button class="xbtn" onclick="addTaskCategory()">＋ Add category</button></div></div>`;
   h+=`<div style="margin-top:16px"><div class="slbl" style="margin-bottom:8px">Data</div><button class="xbtn" onclick="exportAll(true)">📤 Full Export</button><button class="xbtn" onclick="exportPdfReport()">📄 PDF Report</button><button class="xbtn" onclick="openSectionExport()">🧩 Export Sections</button><button class="xbtn" onclick="document.getElementById('impF').click()">📥 Import JSON</button><button class="xbtn" onclick="document.getElementById('csvF').click()">📄 Import CSV</button><button class="xbtn" onclick="restoreBackup()">♻️ Restore Backup</button><button class="xbtn" onclick="openHealthCheck()">🩹 Data Health</button><button class="xbtn" onclick="openChangelog()">📝 Changelog</button><input type="file" id="impF" accept=".json" style="display:none" onchange="importAll(event)"><input type="file" id="csvF" accept=".csv" style="display:none" onchange="importCSV(event)"></div>`;
   h+=`<div style="margin-top:16px"><div class="slbl" style="margin-bottom:8px">Snapshots</div><div class="sdesc">Last 5 local snapshots are kept for safer upgrades.</div>${(X.backups||[]).slice().reverse().map((b,i)=>`<div class="list-row"><div class="list-main"><b>Snapshot ${i+1}</b><span>${new Date(b.savedAt).toLocaleString()}</span></div><button class="cact" onclick="restoreSnapshot(${(X.backups||[]).length-1-i})">↩</button></div>`).join('')||'<div class="sdesc">No versioned snapshots yet.</div>'}</div>`;
@@ -2493,7 +2523,12 @@ function deleteTaskCategory(key){
 
 function setThemeColor(k){X.themeColor=k;applyTheme();sv();render()}
 function selectNavSlot(i){X.navEditSlot=Math.max(0,Math.min(3,Number(i)||0));sv(false);render()}
-function assignNavTab(k){const tabs=(X.navTabs||[]).slice(0,4);while(tabs.length<4){const n=NAV_LIBRARY.find(x=>!tabs.includes(x.k));if(!n)break;tabs.push(n.k)}const slot=Math.max(0,Math.min(3,Number(X.navEditSlot)||0));const existing=tabs.indexOf(k);if(existing>=0&&existing!==slot){const temp=tabs[slot];tabs[slot]=k;tabs[existing]=temp;}else tabs[slot]=k;X.navTabs=tabs.slice(0,4);sv(false);render()}
+function assignNavTab(k){
+  if(APP_SHELL_MINIMAL)return;
+  if(!isViewEnabled(k))return;
+  const tabs=(X.navTabs||[]).slice(0,4);while(tabs.length<4){const n=NAV_LIBRARY.find(x=>!tabs.includes(x.k)&&isViewEnabled(x.k));if(!n)break;tabs.push(n.k)}
+  const slot=Math.max(0,Math.min(3,Number(X.navEditSlot)||0));const existing=tabs.indexOf(k);if(existing>=0&&existing!==slot){const temp=tabs[slot];tabs[slot]=k;tabs[existing]=temp;}else tabs[slot]=k;X.navTabs=tabs.slice(0,4);sv(false);render()
+}
 function openSectionExport(){const ov=document.createElement('div');ov.className='mo';ov.onclick=e=>{if(e.target===ov)ov.remove()};ov.innerHTML=`<div class="mo-in" onclick="event.stopPropagation()"><div class="mo-h"></div><h3>Export selected sections</h3>${['reminders','shifts','bills','kids','health','money','timeLogs'].map(k=>`<label class="snz-opt" style="text-align:left"><input type="checkbox" value="${k}" checked style="margin-right:8px">${k}</label>`).join('')}<button class="sbtn" onclick="doSectionExport()">Export</button></div>`;ov.id='secExpM';document.body.appendChild(ov)}
 function doSectionExport(){const root=document.getElementById('secExpM');if(!root)return;const picked=[...root.querySelectorAll('input[type=checkbox]:checked')].map(i=>i.value);const data={version:APP_VERSION,exportedAt:new Date().toISOString()};if(picked.includes('reminders'))data.reminders=R;if(picked.includes('shifts'))data.shifts=shifts;if(picked.includes('bills'))data.bills=R.filter(r=>r.category==='bills');if(picked.includes('kids'))data.kids={children:X.children,readingLogs:X.readingLogs,homework:X.homework,kidAppointments:X.kidAppointments};if(picked.includes('health'))data.health={medications:X.medications,medicationLogs:X.medicationLogs,sleepLogs:X.sleepLogs,exerciseLogs:X.exerciseLogs};if(picked.includes('money'))data.money={budgetCategories:X.budgetCategories,incomes:X.incomes,contributionLogs:X.contributionLogs};if(picked.includes('timeLogs'))data.timeLogs=timeLogs;downloadJSON(data,`reminders_sections_${new Date().toISOString().slice(0,10)}.json`);root.remove();}
 function downloadJSON(data,name){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1200)}
