@@ -1422,8 +1422,7 @@ const THEME_PRESETS={
 };
 const NAV_LIBRARY=[
   {k:"tasks",l:"Tasks",i:"✅"},{k:"myday",l:"My Day",i:"☀️"},{k:"dashboard",l:"Home",i:"🏠"},{k:"calendar",l:"Calendar",i:"🗓️"},
-  {k:"habits",l:"Habits",i:"🔥"},{k:"kids",l:"Kids",i:"👨‍👩‍👧"},{k:"health",l:"Health",i:"🩺"},{k:"shifts",l:"Shifts",i:"🏗️"},
-  {k:"money",l:"Money",i:"💰"},{k:"timeline",l:"Timeline",i:"🕒"}
+  {k:"kids",l:"Kids",i:"👨‍👩‍👧"},{k:"health",l:"Health",i:"🩺"},{k:"money",l:"Money",i:"💰"}
 ];
 
 /** Layer 1: Primary bottom nav = Tasks + Home + My Day + Calendar only; More + go() respect layer 2. */
@@ -1877,7 +1876,7 @@ function render(){
 function rNav(){
   const lib=Object.fromEntries(NAV_LIBRARY.map(n=>[n.k,n]));
   let h=`<nav class="bnav">`;
-  (X.navTabs||["tasks","dashboard","myday","shifts"]).slice(0,4).forEach(k=>{const t=lib[k]||lib.tasks;h+=`<button class="${view===t.k?"active":""}" onclick="go('${t.k}')"><span style="font-size:18px">${t.i}</span><span>${t.l}</span></button>`});
+  (X.navTabs||["tasks","dashboard","myday","calendar"]).slice(0,4).forEach(k=>{const t=lib[k]||lib.tasks;h+=`<button class="${view===t.k?"active":""}" onclick="go('${t.k}')"><span style="font-size:18px">${t.i}</span><span>${t.l}</span></button>`});
   h+=`<button onclick="openMore()"><span style="font-size:18px">☰</span><span>More</span></button>`;
   if(["tasks","myday","kids","health","money"].includes(view))h+=`<button onclick="${view==='kids'?'openKidQuickAdd()':view==='health'?'openHealthQuickAdd()':view==='money'?'openMoneyQuickAdd()':'openAdd()'}" style="color:var(--accent)"><span style="font-size:18px">＋</span><span>Add</span></button>`;
   h+=`</nav>`;return h;
