@@ -11,6 +11,26 @@ class SyncManager {
     this.nextRetryAt = 0;
     this.lastError = '';
     this.intervalMs = 30000;
+    /** Refreshes Cloud: retry in Ns pill while backoff is active (listeners only run on sync otherwise). */
+    this._retryUiTimer = null;
+  }
+
+  _clearRetryUiTimer() {
+    if (this._retryUiTimer) {
+      clearInterval(this._retryUiTimer);
+      this._retryUiTimer = null;
+    }
+  }
+
+  _scheduleRetryStatusUpdates() {
+    this._clearRetryUiTimer();
+    if (!this.nextRetryAt || Date.now() >= this.nextRetryAt) return;
+    this._retryUiTimer = setInterval(() => {
+      if (!this.nextRetryAt || Date.now() >= this.nextRetryAt) {
+        this._clearRetryUiTimer();
+      }
+      this.notifySyncListeners();
+    }, 1000);
   }
 
   onSyncChange(callback) {
@@ -69,12 +89,14 @@ class SyncManager {
     const delayMs = Math.min(15000 * Math.pow(2, this.failCount - 1), 10 * 60 * 1000);
     this.nextRetryAt = Date.now() + delayMs;
     this.lastError = kind.code || 'sync-failed';
+    this._scheduleRetryStatusUpdates();
   }
 
   _registerSyncSuccess() {
     this.failCount = 0;
     this.nextRetryAt = 0;
     this.lastError = '';
+    this._clearRetryUiTimer();
   }
 
   _canAttemptSync() {
@@ -255,6 +277,7 @@ class SyncManager {
   async manualSync() {
     // User-initiated sync should run immediately, even if auto-sync is in backoff.
     this.nextRetryAt = 0;
+    this._clearRetryUiTimer();
     await this.fullSync();
   }
 
