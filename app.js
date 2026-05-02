@@ -26,6 +26,7 @@ let listening=false,dragId=null,notifInterval=null,searchTimer=null,nlpTimer=nul
 let completedSectionExpanded=false;
 let taskFiltersOpen=localStorage.getItem("rp3_taskFiltersOpen")==="1";
 let batchMode=false,batchSelected=new Set();
+let tasksBatchMode=false,tasksBatchSelected=new Set();
 
 function parseJSON(key,fallback){
   try{return JSON.parse(localStorage.getItem(key)||JSON.stringify(fallback))}catch(e){return fallback}
@@ -812,6 +813,7 @@ function go(v){
   if(!isViewEnabled(v)){showToast('That screen is off in this build.');return;}
   const prev=view;
   view=v;
+  if(prev!==v&&prev==='tasks'&&v!=='tasks'){tasksBatchMode=false;tasksBatchSelected.clear()}
   if(prev!==v)history.pushState({view:v},'',(location.pathname+location.search));
   render();
 }
@@ -1148,6 +1150,24 @@ function moveUnfinished(){
 function toggleBatch(id,checked){if(checked)batchSelected.add(id);else batchSelected.delete(id);render()}
 function batchDone(){batchSelected.forEach(id=>{const r=R.find(x=>x.id===id);if(r){r.completed=true;r.completedAt=new Date().toISOString()}});batchMode=false;batchSelected.clear();sv();render()}
 function batchDel(){batchSelected.forEach(id=>delR(id));batchMode=false;batchSelected.clear();sv();render()}
+function toggleTasksBatch(id,checked){if(checked)tasksBatchSelected.add(id);else tasksBatchSelected.delete(id);render()}
+function selectAllVisibleTasksForBatch(){
+  const list=filter==='all'?getTasksForGroupedMainView():getFiltered();
+  list.forEach(r=>tasksBatchSelected.add(r.id));
+  render();
+  showToast(`${tasksBatchSelected.size} selected`);
+}
+function tasksBatchDone(){
+  tasksBatchSelected.forEach(id=>{const r=R.find(x=>x.id===id);if(r){r.completed=true;r.completedAt=new Date().toISOString()}});
+  tasksBatchMode=false;tasksBatchSelected.clear();sv();render();showToast('Marked done');
+}
+function tasksBatchDel(){
+  const n=tasksBatchSelected.size;
+  if(!n)return;
+  tasksBatchSelected.forEach(id=>delR(id));
+  tasksBatchMode=false;tasksBatchSelected.clear();sv();render();showToast(n===1?'1 task deleted':`${n} tasks deleted`);
+}
+function exitTasksBatch(){tasksBatchMode=false;tasksBatchSelected.clear();render()}
 
 // ==================== WHAT SHOULD I DO NOW? ====================
 
@@ -1308,6 +1328,7 @@ function syncViewportMode(){
   try{coarse=!!(window.matchMedia&&window.matchMedia("(pointer: coarse)").matches)}catch(e){}
   document.body.classList.toggle("coarse-pointer",coarse);
   document.body.classList.toggle("fine-pointer",!coarse);
+  document.body.classList.toggle("tasks-touch",!desktop||coarse);
 }
 function openKeyboardHelp(){
   const ov=document.createElement("div");ov.className="mo";ov.onclick=e=>{if(e.target===ov)ov.remove()};
@@ -1687,11 +1708,13 @@ function ensureEnhancementStyles(){
   const st=document.createElement("style");st.id="enhanceStyles";
   st.textContent=`
   html,body,#app{max-width:100%;overflow-x:hidden}*,*::before,*::after{max-width:100%}
-  body.big-tap .chk{width:28px;height:28px}body.big-tap .cact{width:34px;height:34px;font-size:14px}body.big-tap .card{padding:14px 16px}
+  body.big-tap .chk{width:28px;height:28px}body.big-tap .cact{min-width:44px;min-height:44px;width:44px;height:44px;font-size:15px}body.big-tap .card{padding:14px 16px}
+  body.tasks-touch:not(.big-tap) .chk{min-width:44px;min-height:44px}body.tasks-touch:not(.big-tap) .cact{min-width:44px;min-height:44px;width:44px;height:44px;font-size:15px}body.tasks-touch:not(.big-tap) .nlp-btn{min-width:48px;min-height:48px}body.tasks-touch:not(.big-tap) .fbtn{min-height:44px;padding:0 14px}body.tasks-touch:not(.big-tap) .task-filters-toggle{min-height:44px;padding-top:10px;padding-bottom:10px}body.tasks-touch:not(.big-tap) .sort-row select{min-height:44px;font-size:13px}body.tasks-touch:not(.big-tap) .drag-handle{min-width:40px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+  body.tasks-touch:not(.big-tap) .task-batch-pick{display:flex;align-items:flex-start;padding-top:2px;margin-right:4px}body.tasks-touch:not(.big-tap) .task-batch-pick input{width:22px;height:22px}
   .dash-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px 14px calc(104px + env(safe-area-inset-bottom,0px))}.dash-card{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:14px;min-height:118px}.dash-card.full{grid-column:1/-1}.dash-title{font-size:12px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}.dash-big{font-size:26px;font-weight:900}.dash-sub{font-size:12px;color:var(--text2);line-height:1.35}.mini-list{display:flex;flex-direction:column;gap:6px}.mini-item{font-size:12px;color:var(--text2);padding:6px 8px;background:var(--bg2);border-radius:10px}
   .prayer-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:12px 14px calc(72px + env(safe-area-inset-bottom,0px))}.prayer-item{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:12px}.prayer-item.now{border-color:var(--accent);background:var(--abg)}
   .prayer-strip{margin:10px 14px 0;background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:12px}.prayer-strip-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:10px}.prayer-strip-title{font-size:12px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em}.prayer-strip-next{font-size:15px;font-weight:800}.prayer-chip-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.prayer-chip{padding:10px 12px;border-radius:12px;background:var(--bg2);border:1px solid var(--border)}.prayer-chip b{display:block;font-size:12px;margin-bottom:2px}.prayer-chip span{display:block;font-size:16px;font-weight:800}.prayer-chip.next{border-color:var(--accent);background:var(--abg)}
-  .hero-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.chip-btn{padding:0 12px;min-height:40px;border-radius:999px;border:1.5px solid var(--border);background:var(--card);font-size:12px;font-weight:700;color:var(--text2);display:inline-flex;align-items:center;justify-content:center;line-height:1.2}.chip-btn.on{border-color:var(--accent);color:var(--accent);background:var(--abg)}
+  .hero-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.chip-btn{padding:0 12px;min-height:40px;border-radius:999px;border:1.5px solid var(--border);background:var(--card);font-size:12px;font-weight:700;color:var(--text2);display:inline-flex;align-items:center;justify-content:center;line-height:1.2;box-sizing:border-box}.chip-btn.on{border-color:var(--accent);color:var(--accent);background:var(--abg)}
   .matrix-grid{padding:12px 14px calc(72px + env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.matrix-box{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:12px;min-height:200px}.matrix-box h3{font-size:13px;margin-bottom:8px}.matrix-box .mini-item{font-size:11px}
   .kid-tabs{display:flex;gap:6px;overflow:auto;padding:10px 14px 0}.kid-tab{padding:9px 12px;border-radius:999px;border:1.5px solid var(--border);background:var(--card);font-size:12px;font-weight:700;white-space:nowrap}.kid-tab.active{border-color:var(--accent);background:var(--abg);color:var(--accent)}
   .panel{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:14px;margin:10px 14px;overflow:hidden}.panel:last-child{margin-bottom:calc(70px + env(safe-area-inset-bottom,0px))}.panel h3{font-size:13px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}.list-row{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)}.list-row:last-child{border-bottom:none}.list-main{min-width:0;flex:1}.list-main b{display:block;font-size:13px;word-break:break-word}.list-main span{display:block;font-size:11px;color:var(--text3);line-height:1.45;word-break:break-word}
@@ -1726,6 +1749,9 @@ function ensureEnhancementStyles(){
   @media (min-width:1500px){.desktop-shell #app{max-width:1480px!important}.desktop-shell .hdr,.desktop-shell .nlp-bar,.desktop-shell .nlp-hint-wrap,.desktop-shell .suggest-bar,.desktop-shell .task-filters-wrap,.desktop-shell .task-filter-head,.desktop-shell .filters,.desktop-shell .sort-row,.desktop-shell .search-row,.desktop-shell .settings,.desktop-shell .cal,.desktop-shell .timeline,.desktop-shell .sv,.desktop-shell .dash-grid,.desktop-shell .kid-tabs,.desktop-shell .coach-banner,.desktop-shell .prod-toolbar,.desktop-shell .panel,.desktop-shell .task-desktop-grid{max-width:1320px}.desktop-shell #taskList.task-stack:not(.task-stack-grouped){grid-template-columns:repeat(3,minmax(0,1fr))}.desktop-shell #taskList.task-stack.task-stack-grouped .task-sec-cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
   @media (max-width:720px){.desktop-shell #taskList.task-stack.task-stack-grouped .task-sec-cards{grid-template-columns:1fr}}
   .hdr h1{font-size:24px;letter-spacing:-.03em}.hdr-date,.sdesc,.dash-sub,.coach-copy,.queue-line span,.list-main span{line-height:1.5}.card,.panel,.dash-card,.more-card,.plan-card,.coach-card{box-shadow:0 10px 24px rgba(15,23,42,.06)}[data-theme='dark'] .card,[data-theme='dark'] .panel,[data-theme='dark'] .dash-card,[data-theme='dark'] .more-card,[data-theme='dark'] .plan-card,[data-theme='dark'] .coach-card{box-shadow:none}.fbtn.active,.chip-btn.on,.lane-pill.on{box-shadow:0 8px 20px rgba(234,88,12,.12)}.task-filter-actions .chip-btn,.safe-row .xbtn,.hero-actions .chip-btn{min-height:40px}.more-card{min-height:112px}.desktop-shell .bnav button.active{box-shadow:inset 0 0 0 1px rgba(234,88,12,.18)}
+  body.mobile-shell .cact{min-width:44px;min-height:44px;width:44px;height:44px;box-sizing:border-box}
+  body.mobile-shell .chip-btn{min-width:44px;min-height:44px;padding:0 14px;box-sizing:border-box}
+  body.mobile-shell .task-filter-actions .chip-btn,body.mobile-shell .hero-actions .chip-btn,body.mobile-shell .safe-row .chip-btn{min-width:44px;min-height:44px}
   `;
   document.head.appendChild(st);
 }
@@ -1891,13 +1917,16 @@ function rDashboard(){
   const insights=getPatternInsights();
   const nextPay=getPaycheckCalendarRows(1)[0];
   const plan=buildProductivityPlan();
+  const dashWhatNow=isViewEnabled('whatnow');
+  const dashMoney=isViewEnabled('money');
+  const dashShifts=isViewEnabled('shifts');
   let h=rHdr('Dashboard','See the day clearly and move with confidence');
   h+=`<div class="dash-grid">`;
-  h+=`<div class="dash-card full"><div class="coach-card"><div class="dash-title">Productivity coach</div><div class="coach-title">${esc(plan.coach.title)}</div><div class="coach-copy">${esc(plan.coach.body)}</div><div class="reason-row"><span class="reason-chip">⚡ ${esc((X.energyLevel||'normal').replace(/^./,m=>m.toUpperCase()))} energy</span><span class="reason-chip">⏱ ${plan.minutes} min window</span><span class="reason-chip">🧭 ${esc((X.focusStyle||'balanced').replace(/^./,m=>m.toUpperCase()))} mode</span>${plan.shift.heavy?'<span class="reason-chip">🛠 shift-heavy day</span>':''}</div><div class="hero-actions"><button class="chip-btn" onclick="go('myday')">Open My Day</button><button class="chip-btn" onclick="openPowerHourPlan()">Build my next block</button><button class="chip-btn" onclick="go('whatnow')">Smart next step</button></div></div></div>`;
+  h+=`<div class="dash-card full"><div class="coach-card"><div class="dash-title">Productivity coach</div><div class="coach-title">${esc(plan.coach.title)}</div><div class="coach-copy">${esc(plan.coach.body)}</div><div class="reason-row"><span class="reason-chip">⚡ ${esc((X.energyLevel||'normal').replace(/^./,m=>m.toUpperCase()))} energy</span><span class="reason-chip">⏱ ${plan.minutes} min window</span><span class="reason-chip">🧭 ${esc((X.focusStyle||'balanced').replace(/^./,m=>m.toUpperCase()))} mode</span>${plan.shift.heavy?'<span class="reason-chip">🛠 shift-heavy day</span>':''}</div><div class="hero-actions"><button class="chip-btn" onclick="go('myday')">Open My Day</button><button class="chip-btn" onclick="openPowerHourPlan()">Build my next block</button>${dashWhatNow?`<button class="chip-btn" onclick="go('whatnow')">Smart next step</button>`:''}</div></div></div>`;
   h+=`<div class="dash-card" onclick="openTop3Picker()" style="cursor:pointer"><div class="dash-title">Top 3 Today</div><div class="dash-big">${top3.length}/3</div><div class="dash-sub">${top3.length?top3.map(r=>esc(r.title)).join(' · '):'Tap to pick your top 3'}</div></div>`;
-  h+=`<div class="dash-card"><div class="dash-title">Today's Shift</div><div class="dash-big">${shiftToday.length||0}</div><div class="dash-sub">${shiftToday.length?shiftToday.map(s=>`${esc(s.type)}${s.start&&s.end?` · ${s.start}-${s.end}`:''}${s.onCall?' · on-call':''}`).join('<br>'):'No shifts saved'}</div></div>`;
-  h+=`<div class="dash-card"><div class="dash-title">Focus pulse</div><div class="dash-big">${plan.queue.length}</div><div class="dash-sub">${plan.queue.length?`Ready for your next ${plan.minutes}-minute block`:'Add a few tasks to unlock smarter guidance'}<div class="hero-actions"><button class="chip-btn" onclick="go('whatnow')">Open smart next step</button><button class="chip-btn" onclick="openPowerHourPlan()">Build next block</button></div></div></div>`;
-  h+=`<div class="dash-card"><div class="dash-title">Money</div><div class="dash-big">$${paidThisMonth.toFixed(0)}</div><div class="dash-sub">Bills paid this month${nextPay?`<br>Next pay ${new Date(nextPay.payDate+'T00:00').toLocaleDateString()}`:''}<div class="hero-actions"><button class="chip-btn" onclick="go('money')">Open money</button></div></div></div>`;
+  if(dashShifts)h+=`<div class="dash-card"><div class="dash-title">Today's Shift</div><div class="dash-big">${shiftToday.length||0}</div><div class="dash-sub">${shiftToday.length?shiftToday.map(s=>`${esc(s.type)}${s.start&&s.end?` · ${s.start}-${s.end}`:''}${s.onCall?' · on-call':''}`).join('<br>'):'No shifts saved'}</div></div>`;
+  h+=`<div class="dash-card"><div class="dash-title">Focus pulse</div><div class="dash-big">${plan.queue.length}</div><div class="dash-sub">${plan.queue.length?`Ready for your next ${plan.minutes}-minute block`:'Add a few tasks to unlock smarter guidance'}<div class="hero-actions">${dashWhatNow?`<button class="chip-btn" onclick="go('whatnow')">Open smart next step</button>`:''}<button class="chip-btn" onclick="openPowerHourPlan()">Build next block</button></div></div></div>`;
+  if(dashMoney)h+=`<div class="dash-card"><div class="dash-title">Money</div><div class="dash-big">$${paidThisMonth.toFixed(0)}</div><div class="dash-sub">Bills paid this month${nextPay?`<br>Next pay ${new Date(nextPay.payDate+'T00:00').toLocaleDateString()}`:''}<div class="hero-actions"><button class="chip-btn" onclick="go('money')">Open money</button></div></div></div>`;
   h+=`<div class="dash-card full"><div class="dash-title">Next block</div><div class="mini-list">${plan.queue.length?plan.queue.map((task,i)=>`<div class="mini-item"><b>${i+1}. ${esc(task.title)}</b><br>${task.effort} min · ${esc(task.reasons.join(' • ')||'good fit')}</div>`).join(''):'<div class="mini-item">No clear queue yet. Pick a top 3 task or lower your time window.</div>'}<div class="hero-actions"><button class="chip-btn" onclick="openPowerHourPlan()">Open plan</button><button class="chip-btn" onclick="setFocusStyle('quick')">Quick wins</button><button class="chip-btn" onclick="setFocusStyle('deep')">Deep work</button></div></div></div>`;
   h+=`<div class="dash-card full"><div class="dash-title">What did I miss?</div><div class="mini-list">${overdue.length?overdue.map(r=>`<div class="mini-item">🔴 ${esc(r.title)} · ${fmtD(r.dueDate)}</div>`).join(''):'<div class="mini-item">No overdue items right now</div>'}${dueSoon.map(r=>`<div class="mini-item">⚡ ${esc(r.title)} · ${fmtD(r.dueDate)}</div>`).join('')}</div></div>`;
   h+=`<div class="dash-card full"><div class="dash-title">Weekly auto-review</div><div class="mini-list"><div class="mini-item">Overdue tasks: ${review.overdue}</div>${review.snoozed.map(r=>`<div class="mini-item">😴 ${esc(r.title)} · snoozed ${r.snoozeCount}x</div>`).join('')||'<div class="mini-item">No repeatedly snoozed tasks</div>'}${review.blocked.map(r=>`<div class="mini-item">⛔ ${esc(r.title)} is blocked by another task</div>`).join('')}</div></div>`;
@@ -2107,9 +2136,15 @@ function rTasks(){
   const filteredTasks=getFiltered();
   const groupedBase=getTasksForGroupedMainView();
   const listCount=filter==='all'?groupedBase.length:filteredTasks.length;
-  h+=`<div class="task-filters-wrap${taskFiltersOpen?" open":""}"><button type="button" class="task-filters-toggle chip-btn" onclick="toggleTaskFiltersPanel()" aria-expanded="${taskFiltersOpen?"true":"false"}">Filters <span class="task-filters-chev" aria-hidden="true">${taskFiltersOpen?"▴":"▾"}</span></button><div class="task-filters-panel" ${taskFiltersOpen?"":"hidden"}><div class="task-filter-head"><div class="task-filter-label">Task views</div><div class="task-filter-actions"><button class="chip-btn${filter==='all'?' on':''}" onclick="filter='all';render()">Active</button><button class="chip-btn${filter==='done'?' on':''}" onclick="filter='done';render()">Done</button><button class="chip-btn${filter==='recent'?' on':''}" onclick="filter='recent';render()">Recently Added${recentAddedCount?` (${recentAddedCount})`:''}</button><button class="chip-btn${filter==='duplicates'?' on':''}" onclick="filter='duplicates';render()">Duplicates${dupCount?` (${dupCount})`:''}</button>${filter==='duplicates'&&dupCount?`<button class="chip-btn" onclick="deleteAllDuplicatesFromFilter()">Delete all duplicates</button>`:''}<button class="chip-btn" onclick="openAiRecategorizeModal()">AI recategorize</button><button class="chip-btn" onclick="openBulkImport()">Bulk import</button></div></div><div class="filters task-cat-row">`;
+  h+=`<div class="task-filters-wrap${taskFiltersOpen?" open":""}"><button type="button" class="task-filters-toggle chip-btn" onclick="toggleTaskFiltersPanel()" aria-expanded="${taskFiltersOpen?"true":"false"}">Filters <span class="task-filters-chev" aria-hidden="true">${taskFiltersOpen?"▴":"▾"}</span></button><div class="task-filters-panel" ${taskFiltersOpen?"":"hidden"}><div class="task-filter-head"><div class="task-filter-label">Task views</div><div class="task-filter-actions"><button class="chip-btn${filter==='all'?' on':''}" onclick="filter='all';render()">Active</button><button class="chip-btn${filter==='done'?' on':''}" onclick="filter='done';render()">Done</button><button class="chip-btn${filter==='recent'?' on':''}" onclick="filter='recent';render()">Recently Added${recentAddedCount?` (${recentAddedCount})`:''}</button><button class="chip-btn${filter==='duplicates'?' on':''}" onclick="filter='duplicates';render()">Duplicates${dupCount?` (${dupCount})`:''}</button>${filter==='duplicates'&&dupCount?`<button class="chip-btn" onclick="deleteAllDuplicatesFromFilter()">Delete all duplicates</button>`:''}${APP_SHELL_MINIMAL?'':`<button class="chip-btn" onclick="openAiRecategorizeModal()">AI recategorize</button>`}<button class="chip-btn" onclick="openBulkImport()">Bulk import</button></div></div><div class="filters task-cat-row">`;
   CATS.forEach(c=>{h+=`<button class="fbtn${filter===c.key?' active':''}" onclick="filter='${c.key}';render()">${c.icon} ${c.label}</button>`});
   h+=`<button class="fbtn" onclick="go('settings');setTimeout(()=>document.getElementById('catManage')?.scrollIntoView({behavior:'smooth',block:'start'}),120)">⚙ Manage categories</button></div></div></div><div class="sort-row"><span id="taskCountLabel">${listCount} items${sortBy==='manual'?' · drag to reorder':''}</span><select onchange="setSort(this.value)"><option value="date"${sortBy==='date'?' selected':''}>Date</option><option value="priority"${sortBy==='priority'?' selected':''}>Priority</option><option value="name"${sortBy==='name'?' selected':''}>A-Z</option><option value="manual"${sortBy==='manual'?' selected':''}>Manual</option></select></div>`;
+  if(tasksBatchMode){
+    const n=tasksBatchSelected.size;
+    h+=`<div class="task-batch-toolbar safe-row" style="padding:8px 14px 4px;align-items:center;gap:8px"><span style="font-size:12px;font-weight:700;color:var(--text3)">${n} selected</span><button type="button" class="chip-btn" onclick="selectAllVisibleTasksForBatch()">All in view</button><button type="button" class="chip-btn" style="background:var(--green);color:#fff;border-color:transparent" onclick="tasksBatchDone()">Done</button><button type="button" class="chip-btn" style="background:var(--red);color:#fff;border-color:transparent" onclick="tasksBatchDel()">Delete</button><button type="button" class="chip-btn" onclick="exitTasksBatch()">Cancel</button></div>`;
+  }else{
+    h+=`<div class="task-batch-toolbar" style="padding:4px 14px 0"><button type="button" class="chip-btn" onclick="tasksBatchMode=true;tasksBatchSelected.clear();render()">Select tasks</button></div>`;
+  }
   const mainListHtml=filter==='all'?rGroupedTaskList(groupedBase):rCards(filteredTasks);
   h+=`<div class="task-desktop-grid"><div class="task-main-col"><div class="clist task-stack${filter==='all'?' task-stack-grouped':''}" id="taskList">${mainListHtml}</div></div>${rTaskWorkspaceAside()}</div>`;return h;
 }
@@ -2122,9 +2157,9 @@ function rCards(list){
     const overdueBadge=u==='overdue'&&!r.completed?'<span class="cbdg bdg-overdue-label">Overdue</span>':'';
     const dueHuman=fmtTaskDueHuman(r.dueDate);
     const dueLineCls='cdate-line'+(dueHuman==='No date'?' cdate-muted':'');
-    return`<div class="card pri-${r.priority||'low'}${r.completed?' completed':''}" data-task-id="${r.id}" draggable="true" ondragstart="dragS(event,'${r.id}')" ondragover="dragO(event)" ondragleave="this.classList.remove('drag-over')" ondrop="dragD(event,'${r.id}')" ontouchstart="taskTouchStart(event,'${r.id}')" ontouchmove="taskTouchMove(event,'${r.id}')" ontouchend="taskTouchEnd(event,'${r.id}')" ontouchcancel="taskTouchCancel(event,'${r.id}')" oncontextmenu="event.preventDefault();openTaskMenu('${r.id}')">
+    return`<div class="card pri-${r.priority||'low'}${r.completed?' completed':''}" data-task-id="${r.id}" draggable="${tasksBatchMode&&view==='tasks'?'false':'true'}" ondragstart="dragS(event,'${r.id}')" ondragover="dragO(event)" ondragleave="this.classList.remove('drag-over')" ondrop="dragD(event,'${r.id}')" ontouchstart="taskTouchStart(event,'${r.id}')" ontouchmove="taskTouchMove(event,'${r.id}')" ontouchend="taskTouchEnd(event,'${r.id}')" ontouchcancel="taskTouchCancel(event,'${r.id}')" oncontextmenu="event.preventDefault();openTaskMenu('${r.id}')">
       <div class="crow">
-        <span class="drag-handle">⠿</span>
+        ${tasksBatchMode&&view==='tasks'?`<label class="task-batch-pick" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Select task" ${tasksBatchSelected.has(r.id)?'checked':''} onchange="toggleTasksBatch('${r.id}',this.checked)"></label>`:''}<span class="drag-handle">⠿</span>
         <button class="chk${r.completed?' on':''}" onclick="${blocked?"alert('Complete the dependency first!')":"toggleComp('"+r.id+"')"}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></button>
         <div class="cbody">
           <div class="ctop"><span class="cbadge" style="${categoryBadgeStyle(cat)}">${cat.icon} ${cat.label}</span>${taskSourceBadge(r)}${r.pinned?'<span class="ctag">📌 pinned</span>':''}${isInTop3(r.id)?'<span class="ctag">⭐ top 3</span>':''}${r.nag?'<span class="ctag">🔔 nag</span>':''}${r.bundle?`<span class="ctag">${esc(bundleLabel(r.bundle))}</span>`:''}${kid?`<span class="ctag">${esc(kid.icon)} ${esc(kid.name)}</span>`:''}${(r.tags||[]).slice(0,2).map(t=>`<span class="ctag">#${esc(t)}</span>`).join('')}</div>
