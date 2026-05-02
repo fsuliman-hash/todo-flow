@@ -13,6 +13,8 @@ class SyncManager {
     this.intervalMs = 30000;
     /** Refreshes Cloud: retry in Ns pill while backoff is active (listeners only run on sync otherwise). */
     this._retryUiTimer = null;
+    /** Set true only when syncToCloud finishes its success path (used to avoid scary backoff after pull-only failures). */
+    this._didUploadSucceedLastRun = false;
   }
 
   _clearRetryUiTimer() {
@@ -99,11 +101,19 @@ class SyncManager {
     this._clearRetryUiTimer();
   }
 
+  /** Pull failed after a successful push in the same fullSync — avoid backoff UI; next interval retries pull. */
+  _registerPullFailureSoft(err) {
+    const kind = this._classifySyncError(err);
+    this.lastError = 'pull-' + (kind.code || 'failed');
+    this.notifySyncListeners();
+  }
+
   _canAttemptSync() {
     return !this.nextRetryAt || Date.now() >= this.nextRetryAt;
   }
 
   async syncToCloud() {
+    this._didUploadSucceedLastRun = false;
     if (!authManager.isAuthenticated() || typeof R === 'undefined' || !Array.isArray(R)) return;
     if (!this._canAttemptSync()) return;
 
@@ -153,6 +163,7 @@ class SyncManager {
       this.lastSync = Date.now();
       localStorage.setItem('sync_last', this.lastSync.toString());
       this._registerSyncSuccess();
+      this._didUploadSucceedLastRun = true;
       this.notifySyncListeners();
     } catch (err) {
       this._registerSyncFailure(err);
@@ -162,7 +173,8 @@ class SyncManager {
     }
   }
 
-  async syncFromCloud() {
+  async syncFromCloud(opts = {}) {
+    const afterSuccessfulUpload = !!opts.afterSuccessfulUpload;
     if (!authManager.isAuthenticated()) return;
     if (!this._canAttemptSync()) return;
 
@@ -234,7 +246,11 @@ class SyncManager {
       this._registerSyncSuccess();
       this.notifySyncListeners();
     } catch (err) {
-      this._registerSyncFailure(err);
+      if (afterSuccessfulUpload) {
+        this._registerPullFailureSoft(err);
+      } else {
+        this._registerSyncFailure(err);
+      }
     } finally {
       this.syncing = false;
       this.notifySyncListeners();
@@ -244,7 +260,7 @@ class SyncManager {
   async fullSync() {
     if (!authManager.isAuthenticated()) return;
     await this.syncToCloud();
-    await this.syncFromCloud();
+    await this.syncFromCloud({ afterSuccessfulUpload: this._didUploadSucceedLastRun });
   }
 
   startAutoSync(intervalMs) {
