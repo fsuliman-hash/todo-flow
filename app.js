@@ -1755,7 +1755,7 @@ function ensureEnhancementStyles(){
   st.textContent=`
   html,body,#app{max-width:100%;overflow-x:hidden}*,*::before,*::after{max-width:100%}
   body.big-tap .chk{width:28px;height:28px}body.big-tap .cact{min-width:44px;min-height:44px;width:44px;height:44px;font-size:15px}body.big-tap .card{padding:14px 16px}
-  body.tasks-touch:not(.big-tap) .chk{min-width:44px;min-height:44px}body.tasks-touch:not(.big-tap) .cact{min-width:44px;min-height:44px;width:44px;height:44px;font-size:15px}body.tasks-touch:not(.big-tap) .nlp-btn{min-width:48px;min-height:48px}body.tasks-touch:not(.big-tap) .fbtn{min-height:44px;padding:0 14px}body.tasks-touch:not(.big-tap) .task-filters-toggle{min-height:44px;padding-top:10px;padding-bottom:10px}body.tasks-touch:not(.big-tap) .sort-row select{min-height:44px;font-size:13px}body.tasks-touch:not(.big-tap) .drag-handle{min-width:40px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+  body.tasks-touch:not(.big-tap) .chk{min-width:44px;min-height:44px}body.tasks-touch:not(.big-tap) .cact{min-width:44px;min-height:44px;width:44px;height:44px;font-size:15px}body.tasks-touch:not(.big-tap) .nlp-btn{min-width:48px;min-height:48px}body.tasks-touch:not(.big-tap) .fbtn{min-height:44px;padding:0 14px}body.tasks-touch:not(.big-tap) .task-filters-toggle{min-height:44px;padding-top:10px;padding-bottom:10px}body.tasks-touch:not(.big-tap) .sort-row select{min-height:44px;font-size:13px}body.tasks-touch:not(.big-tap) #taskList .drag-handle{display:none!important}body.tasks-touch:not(.big-tap).tasks-batch-select #taskList .drag-handle{min-width:40px;min-height:44px;display:inline-flex!important;align-items:center;justify-content:center}
   body.tasks-touch:not(.big-tap) .task-batch-pick{display:flex;align-items:flex-start;padding-top:2px;margin-right:4px}body.tasks-touch:not(.big-tap) .task-batch-pick input{width:22px;height:22px}
   .dash-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px 14px calc(104px + env(safe-area-inset-bottom,0px))}.dash-card{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:14px;min-height:118px}.dash-card.full{grid-column:1/-1}.dash-title{font-size:12px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}.dash-big{font-size:26px;font-weight:900}.dash-sub{font-size:12px;color:var(--text2);line-height:1.35}.mini-list{display:flex;flex-direction:column;gap:6px}.mini-item{font-size:12px;color:var(--text2);padding:6px 8px;background:var(--bg2);border-radius:10px}
   .prayer-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:12px 14px calc(72px + env(safe-area-inset-bottom,0px))}.prayer-item{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:12px}.prayer-item.now{border-color:var(--accent);background:var(--abg)}
@@ -1911,6 +1911,7 @@ function render(){
   h+=rNav();
   document.getElementById("app").innerHTML=h;
   updateTT();
+  if(typeof document!=="undefined"&&document.body)document.body.classList.toggle("tasks-batch-select",!!(tasksBatchMode&&view==="tasks"));
 }
 function rNav(){
   const lib=Object.fromEntries(NAV_LIBRARY.map(n=>[n.k,n]));
