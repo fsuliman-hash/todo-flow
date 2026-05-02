@@ -1004,7 +1004,15 @@ function voiceInput(){
 }
 function applySug(a){if(a==="overdue"){filter="overdue";sortBy="date";go('tasks');return}nlpDraft=a;const inp=document.getElementById("nlpIn");if(inp){inp.value=a;inp.focus();inp.setSelectionRange(a.length,a.length)}}
 function toggleSub(rid,si){const r=R.find(x=>x.id===rid);if(r&&r.subtasks&&r.subtasks[si])r.subtasks[si].done=!r.subtasks[si].done;sv();render()}
-function delR(id){const r=R.find(x=>x.id===id);if(!r)return;r.deletedAt=new Date().toISOString();trash.push({...r});R=R.filter(x=>x.id!==id);clearReminderKeys(id);reindexOrders(false);sv();render();showUndo(id)}
+function deleteTaskOnSupabaseIfAuthed(id){
+  if(!id)return;
+  try{
+    if(typeof supabase==='undefined'||typeof supabase.deleteTask!=='function')return;
+    if(typeof supabase.isAuthenticated!=='function'||!supabase.isAuthenticated())return;
+    supabase.deleteTask(id).catch(function(){});
+  }catch(e){}
+}
+function delR(id){const r=R.find(x=>x.id===id);if(!r)return;r.deletedAt=new Date().toISOString();trash.push({...r});R=R.filter(x=>x.id!==id);clearReminderKeys(id);deleteTaskOnSupabaseIfAuthed(id);reindexOrders(false);sv();render();showUndo(id)}
 function dragS(e,id){dragId=id;e.dataTransfer.effectAllowed="move"}
 function dragO(e){e.preventDefault();e.currentTarget.classList.add("drag-over")}
 function dragD(e,tid){
@@ -2019,7 +2027,7 @@ function deleteAllDuplicatesFromFilter(){
   R.forEach(r=>{if(r&&rm.has(String(r.id)))removed.push(r);});
   removed.forEach(r=>trash.push({...r,deletedAt:new Date().toISOString()}));
   R=R.filter(r=>!(r&&rm.has(String(r.id))));
-  removed.forEach(r=>{if(r&&r.id)clearReminderKeys(r.id);});
+  removed.forEach(r=>{if(r&&r.id){clearReminderKeys(r.id);deleteTaskOnSupabaseIfAuthed(r.id);}});
   reindexOrders(false);
   _undoCallback=()=>{R=backup;sv();render();};
   sv();render();showToast(`Deleted ${removed.length} duplicate task${removed.length===1?'':'s'}`,'Undo');
