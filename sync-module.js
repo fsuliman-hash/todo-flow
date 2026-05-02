@@ -15,6 +15,8 @@ class SyncManager {
     this._retryUiTimer = null;
     /** Set true only when syncToCloud finishes its success path (used to avoid scary backoff after pull-only failures). */
     this._didUploadSucceedLastRun = false;
+    /** Coalesce overlapping fullSync calls (interval + manual + auth listener) to avoid parallel pulls/pushes. */
+    this._fullSyncPromise = null;
   }
 
   /** Backoff still runs; countdown text only after this many consecutive failures (reduces noisy pill on flaky networks). */
@@ -265,8 +267,16 @@ class SyncManager {
 
   async fullSync() {
     if (!authManager.isAuthenticated()) return;
-    await this.syncToCloud();
-    await this.syncFromCloud({ afterSuccessfulUpload: this._didUploadSucceedLastRun });
+    if (this._fullSyncPromise) return this._fullSyncPromise;
+    this._fullSyncPromise = (async () => {
+      try {
+        await this.syncToCloud();
+        await this.syncFromCloud({ afterSuccessfulUpload: this._didUploadSucceedLastRun });
+      } finally {
+        this._fullSyncPromise = null;
+      }
+    })();
+    return this._fullSyncPromise;
   }
 
   startAutoSync(intervalMs) {

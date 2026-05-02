@@ -84,9 +84,7 @@ class AuthManager {
         this.user = supabase.getUser();
         this.notifyListeners();
         authDebugLog('signIn ok', this.user && this.user.id);
-        if (typeof syncManager !== 'undefined' && syncManager.syncFromCloud) {
-          await syncManager.syncFromCloud();
-        }
+        /* Sync is started by wireTodoFlowSync onAuthChange (fullSync). Avoid a second parallel syncFromCloud here — it raced and caused flaky failures/backoff on mobile. */
         return { success: true };
       }
       authDebugLog('signIn failed', error);
@@ -153,9 +151,7 @@ class AuthManager {
         } catch (_) {
           /* ignore */
         }
-        if (typeof syncManager !== 'undefined' && syncManager.syncFromCloud) {
-          await syncManager.syncFromCloud();
-        }
+        /* Same as signIn: notifyListeners → fullSync only; no duplicate pull. */
         return { success: true };
       }
       authDebugLog('updatePassword failed', error);
