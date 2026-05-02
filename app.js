@@ -348,8 +348,6 @@ function bulkImportSubmit(){
 
 function getSuggestion(){
   const now=new Date(),dow=now.getDay();
-  const overdue=R.filter(r=>!r.completed&&urg(r.dueDate)==="overdue");
-  if(overdue.length>3)return{text:`You have ${overdue.length} overdue items. Review them?`,action:"overdue"};
   const recent=R.filter(r=>r.createdAt).slice(-50);
   const dayTasks=recent.filter(r=>new Date(r.createdAt).getDay()===dow);
   if(dayTasks.length>=3){const freq={};dayTasks.forEach(r=>{const w=r.title.toLowerCase().split(" ").slice(0,3).join(" ");freq[w]=(freq[w]||0)+1});const top=Object.entries(freq).sort((a,b)=>b[1]-a[1])[0];if(top&&top[1]>=2)return{text:`You often add "${top[0]}..." on ${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dow]}s`,action:top[0]}}
@@ -483,9 +481,11 @@ function getHabitStreak(hab){let s=0,d=new Date();d.setHours(0,0,0,0);for(let i=
 
 // ==================== RENDER ====================
 
-function rHdr(title,sub){
+function rHdr(title,sub,opts){
+  opts=opts||{};
   const active=R.filter(r=>!r.completed&&isTaskStartVisible(r)),ov=active.filter(r=>urg(r.dueDate)==="overdue").length,sc=active.filter(r=>{const u=urg(r.dueDate);return u==="urgent"||u==="soon"}).length,lc=active.filter(r=>urg(r.dueDate)==="later").length;
-  return`<div class="hdr"><div class="hdr-top"><div class="hdr-date">${sub||new Date().toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"})}</div><div style="display:flex;gap:6px"><button class="hdr-btn" onclick="openEndOfDay()" title="End of day review">🌙</button><button class="hdr-btn theme-toggle" onclick="toggleDark()" aria-pressed="${S.darkMode?'true':'false'}" title="${S.darkMode?'Switch to light mode':'Switch to dark mode'}">${S.darkMode?"🌙 Dark":"☀️ Light"}</button></div></div><h1>${title}</h1><div class="stats-row">${ov>0?`<div class="stat ov" onclick="filter='overdue';go('tasks')" style="cursor:pointer"><span>🔴</span><div><div class="stat-n">${ov}</div><div class="stat-l">Overdue</div></div></div>`:""}<div class="stat" onclick="filter='duesoon';go('tasks')" style="cursor:pointer"><span>⚡</span><div><div class="stat-n">${sc}</div><div class="stat-l">Due Soon</div></div></div><div class="stat" onclick="filter='duelater';go('tasks')" style="cursor:pointer"><span>🗓️</span><div><div class="stat-n">${lc}</div><div class="stat-l">Due Later</div></div></div><div class="stat" onclick="filter='all';go('tasks')" style="cursor:pointer"><span>📋</span><div><div class="stat-n">${active.length}</div><div class="stat-l">Total</div></div></div></div></div>`;
+  const hideOvHdr=!!opts.hideHeaderOverdueStat;
+  return`<div class="hdr"><div class="hdr-top"><div class="hdr-date">${sub||new Date().toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"})}</div><div style="display:flex;gap:6px"><button class="hdr-btn" onclick="openEndOfDay()" title="End of day review">🌙</button><button class="hdr-btn theme-toggle" onclick="toggleDark()" aria-pressed="${S.darkMode?'true':'false'}" title="${S.darkMode?'Switch to light mode':'Switch to dark mode'}">${S.darkMode?"🌙 Dark":"☀️ Light"}</button></div></div><h1>${title}</h1><div class="stats-row">${ov>0&&!hideOvHdr?`<div class="stat ov" onclick="filter='overdue';go('tasks')" style="cursor:pointer"><span>🔴</span><div><div class="stat-n">${ov}</div><div class="stat-l">Overdue</div></div></div>`:""}<div class="stat" onclick="filter='duesoon';go('tasks')" style="cursor:pointer"><span>⚡</span><div><div class="stat-n">${sc}</div><div class="stat-l">Due Soon</div></div></div><div class="stat" onclick="filter='duelater';go('tasks')" style="cursor:pointer"><span>🗓️</span><div><div class="stat-n">${lc}</div><div class="stat-l">Due Later</div></div></div><div class="stat" onclick="filter='all';go('tasks')" style="cursor:pointer"><span>📋</span><div><div class="stat-n">${active.length}</div><div class="stat-l">Total</div></div></div></div></div>`;
 }
 function isTaskStartVisible(r){
   if(!r?.startDate)return true;
@@ -2091,7 +2091,7 @@ function rTaskWorkspaceAside(){
   return `<aside class="task-side-col"><div class="panel bulk-import-panel"><h3>Bulk task capture</h3><div class="bulk-help">Paste a list or load a text file. Headings like <b>Bills:</b>, <b>Work:</b>, or <b>[School]</b> help the app sort tasks into categories automatically.</div><div class="bulk-actions"><button class="xbtn" onclick="openBulkImport()">📥 Import text</button><button class="xbtn" onclick="pasteBulkToNewImport()">📋 Paste clipboard</button></div><div class="bulk-help" style="margin-top:8px">Example:<br>Work:<br>- Finish incident report tomorrow 9am<br>Bills:<br>- Pay hydro 2026-04-15 6pm</div></div><div class="panel"><h3>Category overview</h3>${laneCounts.map(x=>`<div class="list-row"><div class="list-main"><b>${esc(x.cat.icon)} ${esc(x.cat.label)}</b><span>${x.count} active task${x.count===1?'':'s'}</span></div></div>`).join('')||'<div class="sdesc">No active category lanes yet.</div>'}</div>${soon.length?`<div class="panel"><h3>Coming up</h3>${soon.map(task=>`<div class="list-row"><div class="list-main"><b>${esc(task.title)}</b><span>${fmtD(task.dueDate)}</span></div></div>`).join('')}</div>`:''}</aside>`;
 }
 function rTasks(){
-  let h=rHdr('Todo Flow','A cleaner place to capture and finish things');
+  let h=rHdr('Todo Flow','A cleaner place to capture and finish things',{hideHeaderOverdueStat:filter==='all'});
   h+=`<div class="nlp-bar"><input id="nlpIn" value="${esc(nlpDraft)}" placeholder="Try: soccer Tuesday 4pm, dentist Friday, pick up milk" ${nlpParsing?'disabled':''} oninput="queueNlp(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();nlpAdd()}"><button class="nlp-btn add" ${nlpParsing?'disabled':''} onclick="openAdd()">${nlpParsing?'⏳':'+'}</button></div>`;
   h+=`<div class="nlp-hint">Natural language, voice, clipboard date detection, long-press actions, and bulk import from text files.</div>`;
   h+=`<div class="search-row" style="padding:8px 14px 0"><input id="searchIn" value="${esc(search)}" placeholder="Search title, notes, tags, or subject" style="width:100%;padding:10px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:12px;background:var(--card);outline:none" oninput="queueSearch(this.value)"></div>`;
