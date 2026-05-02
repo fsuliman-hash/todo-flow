@@ -17,6 +17,7 @@ const EFFORTS=[{key:"",label:"None"},{key:"5",label:"5 min"},{key:"15",label:"15
 const NOTIFICATION_CATCHUP_MS=12*60*60*1000;
 const NOTIFICATION_HISTORY_MS=3*24*60*60*1000;
 const UNSCHEDULED_SENTINEL_ISO="2099-12-31T23:59:00.000Z";
+const CHAT_UI_ENABLED=false;
 
 let R=[],S={...SETTINGS_DEFAULTS},habits=[],shifts=[],timeLogs=[],templates=[],routines=[],trash=[],waterLog={},dispatches=[];
 let view="tasks",filter="all",sortBy=localStorage.getItem("rp3_sort")||"date",search=localStorage.getItem("rp3_search")||"",calDate=new Date(),calSel=null,editId=null,notified=new Set();
@@ -1571,7 +1572,7 @@ function syncCustomCategories(){
 function getCategory(key){return CATS.find(c=>c.key===key)||CATS[CATS.length-1]||BASE_CATS[0]}
 function hexToRgb(hex){const raw=String(hex||'').trim().replace('#','');if(!/^[0-9a-fA-F]{3,8}$/.test(raw))return {r:100,g:116,b:139};let h=raw;if(h.length===3)h=h.split('').map(ch=>ch+ch).join('');if(h.length>=6)return {r:parseInt(h.slice(0,2),16),g:parseInt(h.slice(2,4),16),b:parseInt(h.slice(4,6),16)};return {r:100,g:116,b:139};}
 function categoryBadgeStyle(cat){const rgb=hexToRgb(cat?.color||'#64748B');const lum=((rgb.r*299)+(rgb.g*587)+(rgb.b*114))/1000;const dark=!!document.documentElement.getAttribute('data-theme');const fg=dark?'#F8FAFC':(lum>165?'#1E293B':'#FFFFFF');const bg=dark?`rgba(${rgb.r},${rgb.g},${rgb.b},0.28)`:`rgba(${rgb.r},${rgb.g},${rgb.b},0.16)`;return `--badge-color:${cat?.color||'#64748B'};--badge-bg:${bg};--badge-fg:${fg}`;}
-function taskSourceBadge(r){const m=String(r?.sourceMode||'manual');if(m==='manual')return'';if(m==='chat-ai')return'<span class="ctag">🤖 AI chat</span>';if(m==='ai-suggest')return'<span class="ctag">✨ AI suggest</span>';if(m==='import')return'<span class="ctag">📥 import</span>';if(m==='auto')return'<span class="ctag">⚙️ auto</span>';return'';}
+function taskSourceBadge(r){const m=String(r?.sourceMode||'manual');if(m==='manual')return'';if(m==='chat-ai')return CHAT_UI_ENABLED?'<span class="ctag">🤖 AI chat</span>':'';if(m==='ai-suggest')return'<span class="ctag">✨ AI suggest</span>';if(m==='import')return'<span class="ctag">📥 import</span>';if(m==='auto')return'<span class="ctag">⚙️ auto</span>';return'';}
 function categoryOptions(includeAll=false){
   const opts=CATS.map(c=>({value:c.key,label:`${c.icon} ${c.label}`}));
   return includeAll?[{value:'all',label:'All categories'},...opts]:opts;
@@ -4590,7 +4591,6 @@ function checkDueNowBanner(){
     appendDryRunAssistantNote('Canceled. No changes were made.');
   };
   
-  const CHAT_UI_ENABLED = false; // v1: keep chat code, hide UI
   if (CHAT_UI_ENABLED) {
     setTimeout(function() {
       if (document.getElementById('chat-btn')) return;
