@@ -1,7 +1,7 @@
 // ==================== DATA ====================
 const APP_VERSION = "6.1.3";
 const SK="rp3",STK="rp3_set",HK="rp3_hab",SHK="rp3_shift",TLK="rp3_tlog",TMK="rp3_tmpl",RTK="rp3_rtn",BKP="rp3_backup",TRK="rp3_trash",WTK="rp3_water",DPK="rp3_dispatch";
-const SETTINGS_DEFAULTS={darkMode:false,briefingShown:{},lastSavedAt:null,lastImportAt:null,notifiedHistory:{},aiAssistMode:'manual',aiDailyLimit:40,aiUsage:{day:'',calls:0,byType:{}},chatAutonomyMode:'assistive',chatDryRun:true,chatActionCap:20,chatPlannerEnabled:true,completionAnimSpeed:'normal',syncMode:'auto',syncIntervalSec:30};
+const SETTINGS_DEFAULTS={darkMode:false,briefingShown:{},lastSavedAt:null,lastImportAt:null,notifiedHistory:{},aiAssistMode:'manual',aiDailyLimit:40,aiUsage:{day:'',calls:0,byType:{}},chatAutonomyMode:'assistive',chatDryRun:true,chatActionCap:20,chatPlannerEnabled:true,completionAnimSpeed:'normal',syncMode:'auto',syncIntervalSec:30,showClipboardDateBanner:false};
 const BASE_CATS=[
   {key:"work",label:"Work",icon:"💼",color:"#3B82F6"},{key:"personal",label:"Personal",icon:"🏠",color:"#10B981"},
   {key:"bills",label:"Bills",icon:"💰",color:"#F59E0B"},{key:"health",label:"Health",icon:"🩺",color:"#EF4444"},
@@ -1777,7 +1777,7 @@ function detectClipboardSuggestion(){
     txt=String(txt||'').trim();
     if(!txt||txt.length>140)return;
     if(!/\b(\d{1,2}:\d{2}|tomorrow|today|monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/i.test(txt))return;
-    X.clipboardSuggestion=txt;sv(false);if(view==='tasks'||view==='dashboard')render();
+    X.clipboardSuggestion=txt;sv(false);if(S.showClipboardDateBanner&&(view==='tasks'||view==='dashboard'))render();
   }).catch(()=>{});
 }
 function bundleLabel(b){return b?b[0].toUpperCase()+b.slice(1):'Any time'}
@@ -2093,8 +2093,9 @@ function rTaskWorkspaceAside(){
 function rTasks(){
   let h=rHdr('Todo Flow','A cleaner place to capture and finish things',{hideHeaderOverdueStat:filter==='all'});
   h+=`<div class="nlp-bar"><input id="nlpIn" value="${esc(nlpDraft)}" placeholder="Try: soccer Tuesday 4pm, dentist Friday, pick up milk" ${nlpParsing?'disabled':''} oninput="queueNlp(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();nlpAdd()}"><button class="nlp-btn add" ${nlpParsing?'disabled':''} onclick="openAdd()">${nlpParsing?'⏳':'+'}</button></div>`;
-  h+=`<div class="nlp-hint">Natural language, voice, clipboard date detection, long-press actions, and bulk import from text files.</div>`;
+  h+=`<div class="nlp-hint">Natural language, voice, long-press actions, and bulk import. Optional clipboard date hint bar in Settings.</div>`;
   h+=`<div class="search-row" style="padding:8px 14px 0"><input id="searchIn" value="${esc(search)}" placeholder="Search title, notes, tags, or subject" style="width:100%;padding:10px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:12px;background:var(--card);outline:none" oninput="queueSearch(this.value)"></div>`;
+  if(S.showClipboardDateBanner&&X.clipboardSuggestion)h+=`<div class="suggest-bar"><span>📋</span><span class="st">Clipboard looks like a date/reminder: ${esc(X.clipboardSuggestion)}</span><button onclick="useClipboardSuggestion()">Use</button><button class="dism" onclick="dismissClipboardSuggestion()">✕</button></div>`;
   if(ttActive)h+=rTTActive();
   const dupCount=getDuplicateTaskIdSet().size;
   const recentAddedCount=getTaskVisibleList(R).filter(r=>!r.completed&&isRecentlyAddedTask(r)).length;
@@ -2460,6 +2461,7 @@ function rSettings(){
   }
   h+=`</div>`;
   h+=`<div class="sitem"><div><div class="slbl">Bigger tap targets</div><div class="sdesc">Better one-handed use</div></div><button class="tog${X.bigTap?' on':''}" onclick="X.bigTap=!X.bigTap;applyTheme();sv();render()"></button></div>`;
+  h+=`<div class="sitem"><div><div class="slbl">Clipboard date hint</div><div class="sdesc">Show a banner on Tasks when the clipboard looks like a date or reminder. Clipboard check still runs either way; turn this on to see Use / dismiss.</div></div><button class="tog${S.showClipboardDateBanner?' on':''}" onclick="S.showClipboardDateBanner=!S.showClipboardDateBanner;sv();render()"></button></div>`;
   h+=`<div style="margin-top:14px"><div class="slbl" style="margin-bottom:8px">Task complete animation</div><div class="safe-row"><button class="chip-btn${S.completionAnimSpeed==='fast'?' on':''}" onclick="S.completionAnimSpeed='fast';sv(false);render();showToast('Completion speed: fast')">Fast</button><button class="chip-btn${(!S.completionAnimSpeed||S.completionAnimSpeed==='normal')?' on':''}" onclick="S.completionAnimSpeed='normal';sv(false);render();showToast('Completion speed: normal')">Normal</button><button class="chip-btn${S.completionAnimSpeed==='slow'?' on':''}" onclick="S.completionAnimSpeed='slow';sv(false);render();showToast('Completion speed: slow')">Slow</button><button class="xbtn" onclick="previewCompletionAnimation()">Preview</button></div><div id="tf-completion-preview" class="card pri-medium" style="margin:10px 0 0;padding:10px 12px;pointer-events:none"><div class="crow"><button class="chk on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></button><div class="cbody"><div class="ctitle">Sample completed task</div><div class="cmeta"><span class="cdate">Preview speed</span></div></div></div></div></div>`;
   h+=`<div style="margin-top:16px"><div class="slbl" style="margin-bottom:8px">Accent Color</div><div class="safe-row">${Object.keys(THEME_PRESETS).map(k=>`<button class="chip-btn${X.themeColor===k?' on':''}" onclick="setThemeColor('${k}')">${k}</button>`).join('')}</div></div>`;
   h+=`<div style="margin-top:16px"><div class="slbl" style="margin-bottom:8px">Bottom Nav</div><div class="sdesc" style="margin-bottom:8px">${APP_SHELL_MINIMAL?'This build uses fixed shortcuts: Tasks · Home · My Day · Calendar.':'Pick a slot, then tap any icon below to assign it.'}</div><div class="nav-slot-grid">${(X.navTabs||[]).slice(0,4).map((k,i)=>{const item=NAV_LIBRARY.find(n=>n.k===k)||NAV_LIBRARY[0];return `<button class="nav-slot${(X.navEditSlot??0)===i?' active':''}" onclick="selectNavSlot(${i})"${APP_SHELL_MINIMAL?' disabled style="opacity:.55"':''}><small>Slot ${i+1}</small><b>${item.i} ${esc(item.l)}</b></button>`}).join('')}</div>${APP_SHELL_MINIMAL?'':`<div class="nav-chooser">${navLibraryForChooser().map(n=>`<button class="nav-choice${X.navTabs.includes(n.k)?' on':''}" onclick="assignNavTab('${n.k}')">${n.i} ${esc(n.l)}</button>`).join('')}</div>`}</div>`;
