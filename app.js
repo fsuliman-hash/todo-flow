@@ -485,9 +485,11 @@ function getHabitStreak(hab){let s=0,d=new Date();d.setHours(0,0,0,0);for(let i=
 
 function rHdr(title,sub,opts){
   opts=opts||{};
-  const active=R.filter(r=>!r.completed&&isTaskStartVisible(r)),ov=active.filter(r=>urg(r.dueDate)==="overdue").length,sc=active.filter(r=>{const u=urg(r.dueDate);return u==="urgent"||u==="soon"}).length,lc=active.filter(r=>urg(r.dueDate)==="later").length;
-  const hideOvHdr=!!opts.hideHeaderOverdueStat;
-  return`<div class="hdr"><div class="hdr-top"><div class="hdr-date">${sub||new Date().toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"})}</div><div style="display:flex;gap:6px"><button class="hdr-btn" onclick="openEndOfDay()" title="End of day review">🌙</button><button class="hdr-btn theme-toggle" onclick="toggleDark()" aria-pressed="${S.darkMode?'true':'false'}" title="${S.darkMode?'Switch to light mode':'Switch to dark mode'}">${S.darkMode?"🌙 Dark":"☀️ Light"}</button></div></div><h1>${title}</h1><div class="stats-row">${ov>0&&!hideOvHdr?`<div class="stat ov" onclick="filter='overdue';go('tasks')" style="cursor:pointer"><span>🔴</span><div><div class="stat-n">${ov}</div><div class="stat-l">Overdue</div></div></div>`:""}<div class="stat" onclick="filter='duesoon';go('tasks')" style="cursor:pointer"><span>⚡</span><div><div class="stat-n">${sc}</div><div class="stat-l">Due Soon</div></div></div><div class="stat" onclick="filter='duelater';go('tasks')" style="cursor:pointer"><span>🗓️</span><div><div class="stat-n">${lc}</div><div class="stat-l">Due Later</div></div></div><div class="stat" onclick="filter='all';go('tasks')" style="cursor:pointer"><span>📋</span><div><div class="stat-n">${active.length}</div><div class="stat-l">Total</div></div></div></div></div>`;
+  const pool=(opts.headerStatPool&&Array.isArray(opts.headerStatPool))?opts.headerStatPool:getTaskVisibleList(R).filter(r=>!r.completed&&isTaskStartVisible(r)),ov=pool.filter(r=>urg(r.dueDate)==="overdue").length,sc=pool.filter(r=>{const u=urg(r.dueDate);return u==="urgent"||u==="soon"}).length,lc=pool.filter(r=>urg(r.dueDate)==="later").length;
+  const totalN=typeof opts.headerTotalCount==="number"?opts.headerTotalCount:pool.length;
+  const showOvHdr=ov>0;
+  const overdueHtml=showOvHdr?`<div class="stat ov" onclick="filter='overdue';go('tasks')" style="cursor:pointer" role="button"><span>🔴</span><div><div class="stat-n">${ov}</div><div class="stat-l">Overdue</div></div></div>`:'';
+  return`<div class="hdr"><div class="hdr-top"><div class="hdr-date">${sub||new Date().toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"})}</div><div style="display:flex;gap:6px"><button class="hdr-btn" onclick="openEndOfDay()" title="End of day review">🌙</button><button class="hdr-btn theme-toggle" onclick="toggleDark()" aria-pressed="${S.darkMode?'true':'false'}" title="${S.darkMode?'Switch to light mode':'Switch to dark mode'}">${S.darkMode?"🌙 Dark":"☀️ Light"}</button></div></div><h1>${title}</h1><div class="stats-row${showOvHdr?'':' stats-row--compact'}">${overdueHtml}<div class="stat" onclick="filter='duesoon';go('tasks')" style="cursor:pointer" role="button"><span>⚡</span><div><div class="stat-n">${sc}</div><div class="stat-l">Due Soon</div></div></div><div class="stat" onclick="filter='duelater';go('tasks')" style="cursor:pointer" role="button"><span>🗓️</span><div><div class="stat-n">${lc}</div><div class="stat-l">Due Later</div></div></div><div class="stat" onclick="filter='all';go('tasks')" style="cursor:pointer" role="button"><span>📋</span><div><div class="stat-n" id="hdrStatTotal">${totalN}</div><div class="stat-l">Total</div></div></div></div></div>`;
 }
 function isTaskStartVisible(r){
   if(!r?.startDate)return true;
@@ -1063,8 +1065,12 @@ function refreshTaskResults(){
   const countEl=document.getElementById("taskCountLabel"),listEl=document.getElementById("taskList");
   if(!countEl||!listEl)return render();
   const filtered=getFiltered();
-  countEl.textContent=`${filtered.length} items${sortBy==="manual"?" · drag to reorder":""}`;
-  listEl.innerHTML=rCards(filtered);
+  const grouped=getTasksForGroupedMainView();
+  const n=filter==="all"?grouped.length:filtered.length;
+  countEl.textContent=`${n} items${sortBy==="manual"?" · drag to reorder":""}`;
+  listEl.innerHTML=filter==="all"?rGroupedTaskList(grouped):rCards(filtered);
+  const totalHdr=document.getElementById("hdrStatTotal");
+  if(totalHdr)totalHdr.textContent=String(n);
 }
 function queueSearch(v){
   search=v;
@@ -2071,6 +2077,26 @@ function deleteAllDuplicatesFromFilter(){
   _undoCallback=()=>{R=backup;sv();render();};
   sv();render();showToast(`Deleted ${removed.length} duplicate task${removed.length===1?'':'s'}`,'Undo');
 }
+function getTasksForHeaderStats(){
+  const dupIds=filter==='duplicates'?getDuplicateTaskIdSet():null;
+  const urgencyLanes=new Set(['overdue','duesoon','duelater']);
+  const listModes=new Set(['done','recent','duplicates']);
+  let primary=filter;
+  if(urgencyLanes.has(filter))primary='all';
+  else if(listModes.has(filter))primary='all';
+  let l=getTaskVisibleList(R).filter(r=>{
+    if(primary==='all')return !r.completed;
+    if(primary==='done')return r.completed;
+    if(primary==='recent')return !r.completed&&isRecentlyAddedTask(r);
+    if(primary==='duplicates')return !r.completed&&dupIds&&dupIds.has(r.id);
+    return r.category===primary&&!r.completed;
+  });
+  if(primary!=='duplicates'){
+    l=l.filter(r=>r.completed||isTaskStartVisible(r));
+  }
+  if(search){const q=search.toLowerCase();l=l.filter(r=>r.title.toLowerCase().includes(q)||(r.notes||'').toLowerCase().includes(q)||(r.tags||[]).some(t=>t.toLowerCase().includes(q))||(r.subject||'').toLowerCase().includes(q));}
+  return l;
+}
 function getFiltered(){
   const dupIds=filter==='duplicates'?getDuplicateTaskIdSet():null;
   let l=getTaskVisibleList(R).filter(r=>{if(filter==='all')return !r.completed;if(filter==='done')return r.completed;if(filter==='recent')return !r.completed&&isRecentlyAddedTask(r);if(filter==='duplicates')return !r.completed&&dupIds&&dupIds.has(r.id);if(filter==='overdue')return !r.completed&&urg(r.dueDate)==='overdue';if(filter==='duesoon')return !r.completed&&['urgent','soon'].includes(urg(r.dueDate));if(filter==='duelater')return !r.completed&&urg(r.dueDate)==='later';return r.category===filter&&!r.completed});
@@ -2116,9 +2142,9 @@ function groupTasksForMainView(list){
     if(!r)return;
     if(r.completed){completed.push(r);return;}
     if(isUnscheduledISO(r.dueDate)){upcoming.push(r);return;}
-    if(isToday(r.dueDate)){today.push(r);return;}
     const u=urg(r.dueDate);
     if(u==='overdue'){overdue.push(r);return;}
+    if(isToday(r.dueDate)){today.push(r);return;}
     upcoming.push(r);
   });
   return {overdue,today,upcoming,completed};
@@ -2174,7 +2200,11 @@ function rTaskWorkspaceAside(){
   return `<aside class="task-side-col"><div class="panel bulk-import-panel"><h3>Bulk task capture</h3><div class="bulk-help">Paste a list or load a text file. Headings like <b>Bills:</b>, <b>Work:</b>, or <b>[School]</b> help the app sort tasks into categories automatically.</div><div class="bulk-actions"><button class="xbtn" onclick="openBulkImport()">📥 Import text</button><button class="xbtn" onclick="pasteBulkToNewImport()">📋 Paste clipboard</button></div><div class="bulk-help" style="margin-top:8px">Example:<br>Work:<br>- Finish incident report tomorrow 9am<br>Bills:<br>- Pay hydro 2026-04-15 6pm</div></div><div class="panel"><h3>Category overview</h3>${laneCounts.map(x=>`<div class="list-row"><div class="list-main"><b>${esc(x.cat.icon)} ${esc(x.cat.label)}</b><span>${x.count} active task${x.count===1?'':'s'}</span></div></div>`).join('')||'<div class="sdesc">No active category lanes yet.</div>'}</div>${soon.length?`<div class="panel"><h3>Coming up</h3>${soon.map(task=>`<div class="list-row"><div class="list-main"><b>${esc(task.title)}</b><span>${fmtD(task.dueDate)}</span></div></div>`).join('')}</div>`:''}</aside>`;
 }
 function rTasks(){
-  let h=rHdr('Todo Flow','A cleaner place to capture and finish things',{hideHeaderOverdueStat:filter==='all'});
+  const statsPool=getTasksForHeaderStats();
+  const filteredTasks=getFiltered();
+  const groupedBase=getTasksForGroupedMainView();
+  const listCount=filter==='all'?groupedBase.length:filteredTasks.length;
+  let h=rHdr('Todo Flow','A cleaner place to capture and finish things',{headerTotalCount:listCount,headerStatPool:statsPool});
   h+=`<div class="nlp-bar"><input id="nlpIn" value="${esc(nlpDraft)}" placeholder="Try: soccer Tuesday 4pm, dentist Friday, pick up milk" ${nlpParsing?'disabled':''} oninput="queueNlp(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();nlpAdd()}"><button class="nlp-btn add" ${nlpParsing?'disabled':''} onclick="openAdd()">${nlpParsing?'⏳':'+'}</button></div>`;
   if(!nlpHintDismissed())h+=`<div class="nlp-hint-wrap"><p class="nlp-hint">Natural language, voice, long-press & bulk import — clipboard hint optional in Settings.</p><button type="button" class="nlp-hint-dismiss" onclick="dismissNlpHint()" aria-label="Dismiss hint">✕</button></div>`;
   h+=`<div class="search-row" style="padding:8px 14px 0"><input id="searchIn" value="${esc(search)}" placeholder="Search title, notes, tags, or subject" style="width:100%;padding:10px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:12px;background:var(--card);outline:none" oninput="queueSearch(this.value)"></div>`;
@@ -2182,9 +2212,6 @@ function rTasks(){
   if(ttActive)h+=rTTActive();
   const dupCount=getDuplicateTaskIdSet().size;
   const recentAddedCount=getTaskVisibleList(R).filter(r=>!r.completed&&isRecentlyAddedTask(r)).length;
-  const filteredTasks=getFiltered();
-  const groupedBase=getTasksForGroupedMainView();
-  const listCount=filter==='all'?groupedBase.length:filteredTasks.length;
   h+=`<div class="task-filters-wrap${taskFiltersOpen?" open":""}"><button type="button" class="task-filters-toggle chip-btn" onclick="toggleTaskFiltersPanel()" aria-expanded="${taskFiltersOpen?"true":"false"}">Filters <span class="task-filters-chev" aria-hidden="true">${taskFiltersOpen?"▴":"▾"}</span></button><div class="task-filters-panel" ${taskFiltersOpen?"":"hidden"}><div class="task-filter-head"><div class="task-filter-label">Task views</div><div class="task-filter-actions"><button class="chip-btn${filter==='all'?' on':''}" onclick="filter='all';render()">Active</button><button class="chip-btn${filter==='done'?' on':''}" onclick="filter='done';render()">Done</button><button class="chip-btn${filter==='recent'?' on':''}" onclick="filter='recent';render()">Recently Added${recentAddedCount?` (${recentAddedCount})`:''}</button><button class="chip-btn${filter==='duplicates'?' on':''}" onclick="filter='duplicates';render()">Duplicates${dupCount?` (${dupCount})`:''}</button>${filter==='duplicates'&&dupCount?`<button class="chip-btn" onclick="deleteAllDuplicatesFromFilter()">Delete all duplicates</button>`:''}${APP_SHELL_MINIMAL?'':`<button class="chip-btn" onclick="openAiRecategorizeModal()">AI recategorize</button>`}<button class="chip-btn" onclick="openBulkImport()">Bulk import</button></div></div><div class="filters task-cat-row">`;
   CATS.forEach(c=>{h+=`<button class="fbtn${filter===c.key?' active':''}" onclick="filter='${c.key}';render()">${c.icon} ${c.label}</button>`});
   h+=`<button class="fbtn" onclick="go('settings');setTimeout(()=>document.getElementById('catManage')?.scrollIntoView({behavior:'smooth',block:'start'}),120)">⚙ Manage categories</button></div></div></div><div class="sort-row"><span id="taskCountLabel">${listCount} items${sortBy==='manual'?' · drag to reorder':''}</span><select onchange="setSort(this.value)"><option value="date"${sortBy==='date'?' selected':''}>Date</option><option value="priority"${sortBy==='priority'?' selected':''}>Priority</option><option value="name"${sortBy==='name'?' selected':''}>A-Z</option><option value="manual"${sortBy==='manual'?' selected':''}>Manual</option></select></div>`;
@@ -4633,6 +4660,79 @@ function checkDueNowBanner(){
       inp.focus();
     }
   }
+
+  function buildAssistantChatBubbleEl(reply, opts) {
+    const titles = opts && Array.isArray(opts.changedTitles) && opts.changedTitles.length ? opts.changedTitles : null;
+    const headerText = opts && typeof opts.headerText === 'string' ? opts.headerText : '';
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:8px;width:100%;';
+    const bubble = document.createElement('div');
+    bubble.style.cssText = 'background:var(--bg2);padding:12px 16px;border-radius:12px;font-size:13px;max-width:80%;color:var(--text);border:1px solid var(--border);';
+    if (titles && headerText) {
+      bubble.textContent = headerText;
+    } else {
+      bubble.textContent = reply;
+    }
+    wrap.appendChild(bubble);
+    if (titles && headerText) {
+      const block = document.createElement('div');
+      block.style.cssText = 'max-width:80%;';
+      const h = document.createElement('div');
+      h.style.cssText = 'font-weight:600;margin-bottom:6px;font-size:13px;color:var(--text);';
+      h.textContent = 'Last changes:';
+      block.appendChild(h);
+      const list = document.createElement('div');
+      list.style.cssText = 'margin:0 0 8px 0;font-size:13px;color:var(--text2);line-height:1.5;';
+      titles.slice(0, 10).forEach(function (t) {
+        const line = document.createElement('div');
+        line.textContent = '- ' + t;
+        list.appendChild(line);
+      });
+      if (titles.length > 10) {
+        const more = document.createElement('div');
+        more.style.cssText = 'font-size:12px;color:var(--text3);margin-top:4px;';
+        more.textContent = '+' + (titles.length - 10) + ' more';
+        list.appendChild(more);
+      }
+      block.appendChild(list);
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.textContent = 'Copy changed tasks';
+      copyBtn.setAttribute('aria-label', 'Copy changed tasks to clipboard');
+      copyBtn.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:6px 12px;background:var(--bg2);color:var(--text);font-size:12px;cursor:pointer;font-family:DM Sans,sans-serif;font-weight:600;';
+      copyBtn.onclick = function (ev) {
+        ev.stopPropagation();
+        const body = titles.join('\n');
+        const label = 'Copy changed tasks';
+        function flash() {
+          copyBtn.textContent = 'Copied!';
+          setTimeout(function () { copyBtn.textContent = label; }, 1800);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(body).then(flash).catch(function () {
+            if (typeof showToast === 'function') showToast('Copy failed', 3000);
+          });
+        } else {
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = body;
+            ta.setAttribute('readonly', '');
+            ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            flash();
+          } catch (_e) {
+            if (typeof showToast === 'function') showToast('Copy failed', 3000);
+          }
+        }
+      };
+      block.appendChild(copyBtn);
+      wrap.appendChild(block);
+    }
+    return wrap;
+  }
   
   window.sendChatMsg = async function() {
     const input = document.getElementById('chat-input');
@@ -4662,6 +4762,8 @@ function checkDueNowBanner(){
     
     try {
       let reply = '';
+      let lastPlannerChangedTitles = null;
+      let lastPlannerReplyHeader = null;
       try {
         const mutIntent=getChatMutationIntentSummary(text);
         const bypassDryRun=window.__chatBypassDryRunText&&String(window.__chatBypassDryRunText)===String(text||'');
@@ -4691,10 +4793,15 @@ function checkDueNowBanner(){
               if(run.executed){
                 const lines=(run.statuses||[]).slice(0,8).map(function(s){return `${s.status==='applied'?'✅':'⚪'} #${s.index} ${s.type}: ${s.message}`;});
                 const changed=collectRunChangedTitles(run);
+                const header=`Executed ${run.executed} planned action${run.executed===1?'':'s'}.\n${lines.join('\n')}`;
                 const changedPreview=changed.length
                   ? `\n\nLast changes:\n- ${changed.slice(0,10).join('\n- ')}${changed.length>10?`\n- +${changed.length-10} more`:''}`
                   : '';
-                reply=`Executed ${run.executed} planned action${run.executed===1?'':'s'}.\n${lines.join('\n')}${changedPreview}`;
+                reply=header+changedPreview;
+                if(changed.length){
+                  lastPlannerChangedTitles=changed.slice();
+                  lastPlannerReplyHeader=header;
+                }
               }else{
                 const lines=(run.statuses||[]).slice(0,8).map(function(s){return `⚪ #${s.index} ${s.type}: ${s.message}`;});
                 reply=lines.length?`No actions were applied.\n${lines.join('\n')}`:String(plan?.assistantReply||'Planner did not find executable changes.');
@@ -4893,8 +5000,12 @@ function checkDueNowBanner(){
       loading.remove();
       if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
       
-      const aiMsg = document.createElement('div');
-      aiMsg.innerHTML = '<div style="background:#f0f0f0;padding:12px 16px;border-radius:12px;font-size:13px;max-width:80%;color:#333;">' + reply.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+      const aiMsg = buildAssistantChatBubbleEl(
+        reply,
+        lastPlannerChangedTitles && lastPlannerChangedTitles.length && lastPlannerReplyHeader
+          ? { changedTitles: lastPlannerChangedTitles, headerText: lastPlannerReplyHeader }
+          : null
+      );
       messages.appendChild(aiMsg);
       appendChatHistory('assistant', reply);
       if(pendingDryRunConfirm)renderDryRunConfirmCard(messages);
