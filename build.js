@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { minify } = require('terser');
 
 const files = [
@@ -53,6 +54,14 @@ async function build() {
   const minKb = (Buffer.byteLength(result.code, 'utf8') / 1024).toFixed(1);
   const pct = (100 - (parseFloat(minKb) / parseFloat(rawKb) * 100)).toFixed(0);
   console.log(`[build] app.bundle.js  ${rawKb} KB → ${minKb} KB  (${pct}% reduction, ${files.length} files)`);
+
+  // Inject content hash into index.html so browsers never serve a stale bundle.
+  const hash = crypto.createHash('md5').update(result.code).digest('hex').slice(0, 8);
+  const indexPath = path.join(__dirname, 'index.html');
+  const html = fs.readFileSync(indexPath, 'utf8');
+  const updated = html.replace(/app\.bundle\.js(\?v=[a-f0-9]+)?/g, `app.bundle.js?v=${hash}`);
+  fs.writeFileSync(indexPath, updated, 'utf8');
+  console.log(`[build] index.html cache-bust: ?v=${hash}`);
 }
 
 build().catch(err => {
