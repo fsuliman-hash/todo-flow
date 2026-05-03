@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "buildCommand": "node build.js",
   "functions": {
     "api/chat.js": { "maxDuration": 30 },
     "api/chat-action.js": { "maxDuration": 30 },

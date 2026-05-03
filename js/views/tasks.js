@@ -195,6 +195,9 @@ const NLP_HINT_LS_KEY='rp3_nlpHintDismissed';
 function nlpHintDismissed(){try{return localStorage.getItem(NLP_HINT_LS_KEY)==='1'}catch(e){return false}}
 function dismissNlpHint(){try{localStorage.setItem(NLP_HINT_LS_KEY,'1')}catch(e){}render()}
 function markNlpHintConsumed(){try{localStorage.setItem(NLP_HINT_LS_KEY,'1')}catch(e){}}
+const SWIPE_HINT_KEY='rp3_swipeHintDismissed';
+function swipeHintDismissed(){try{return localStorage.getItem(SWIPE_HINT_KEY)==='1'}catch(e){return false}}
+function dismissSwipeHint(){try{localStorage.setItem(SWIPE_HINT_KEY,'1')}catch(e){}render()}
 function rTaskWorkspaceAside(){
   const laneCounts=CATS.map(c=>({cat:c,count:R.filter(r=>!r.completed&&r.category===c.key).length})).filter(x=>x.count>0).sort((a,b)=>b.count-a.count).slice(0,6);
   const soon=R.filter(r=>!r.completed&&!isUnscheduledISO(r.dueDate)&&['urgent','soon'].includes(urg(r.dueDate))).sort((a,b)=>new Date(a.dueDate)-new Date(b.dueDate)).slice(0,4);
@@ -222,6 +225,7 @@ function rTasks(){
   }else{
     h+=`<div class="task-batch-toolbar" style="padding:4px 14px 0"><button type="button" class="chip-btn" onclick="tasksBatchMode=true;tasksBatchSelected.clear();render()">Select tasks</button></div>`;
   }
+  if(!swipeHintDismissed()&&R.length&&('ontouchstart' in window))h+=`<div class="swipe-hint-wrap"><span class="swipe-hint">← swipe to complete · swipe right to snooze</span><button type="button" class="nlp-hint-dismiss" onclick="dismissSwipeHint()" aria-label="Dismiss">✕</button></div>`;
   const mainListHtml=filter==='all'?rGroupedTaskList(groupedBase):rCards(filteredTasks);
   h+=`<div class="task-desktop-grid"><div class="task-main-col"><div class="clist task-stack${filter==='all'?' task-stack-grouped':''}" id="taskList">${mainListHtml}</div></div>${rTaskWorkspaceAside()}</div>`;return h;
 }

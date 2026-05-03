@@ -53,6 +53,8 @@ button{cursor:pointer}
 .nlp-hint{flex:1;min-width:0;margin:0;font-size:10px;color:var(--text3);font-style:italic;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nlp-hint-dismiss{flex-shrink:0;width:28px;height:28px;border:none;border-radius:8px;background:transparent;color:var(--text3);font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
 .nlp-hint-dismiss:active{opacity:.65}
+.swipe-hint-wrap{display:flex;align-items:center;gap:4px;padding:4px var(--container-pad) 2px}
+.swipe-hint{flex:1;font-size:10px;color:var(--text3);font-style:italic;text-align:center}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 .suggest-bar{margin:8px 14px 0;background:var(--abg);border:1px solid rgba(37,99,235,.2);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:8px}
 .suggest-bar .st{flex:1;font-size:12px;color:var(--accent);font-weight:500}
@@ -298,7 +300,7 @@ body{background:linear-gradient(180deg,var(--bg),var(--bg2));font-size:15px;line
 .desktop-shell body{background:linear-gradient(180deg,var(--bg),var(--bg2))}
 .desktop-shell #app{max-width:1320px!important;padding-left:128px!important}.desktop-shell .task-desktop-grid{grid-template-columns:minmax(0,1.55fr) 350px;gap:20px}.desktop-shell #taskList.task-stack{gap:14px}.desktop-shell .hdr{border-radius:28px;padding:28px 28px 20px}.desktop-shell .dash-grid{gap:14px}.desktop-shell .mo-in{max-width:min(1080px,calc(100vw - 220px));padding:22px 22px 26px}
 [data-theme="dark"] .card,[data-theme="dark"] .panel,[data-theme="dark"] .dash-card,[data-theme="dark"] .habit-card,[data-theme="dark"] .sc,[data-theme="dark"] .plan-card,[data-theme="dark"] .coach-card,[data-theme="dark"] .more-card{box-shadow:none}
-@media (max-width:600px){body{font-size:14px}.dash-grid{grid-template-columns:1fr 1fr}.mo{padding:16px 10px 14px}.mo-in{max-width:min(100vw - 16px,560px)}.card{padding:10px 12px;margin-bottom:7px}.ctop{margin-bottom:1px}.cmeta{margin-top:3px;gap:4px}.cbadge{padding:2px 7px;font-size:9px}.ctitle{font-size:14px}.dash-big{font-size:28px}.coach-title{font-size:18px}.hdr{padding:20px var(--container-pad) 16px}.hdr-btn.theme-toggle{min-width:74px;padding:0 10px;font-size:11px}.xbtn,.chip-btn,.sbtn,.cbtn,.abtn{min-height:40px}#taskList .cacts .cact-row-desktop{display:none!important}#taskList .cacts .cact-row-mobile-overflow{display:inline-flex!important}}
+@media (max-width:600px){body{font-size:14px}.dash-grid{grid-template-columns:1fr 1fr}.mo{padding:16px 10px 14px}.mo-in{max-width:min(100vw - 16px,560px)}.card{padding:10px 12px;margin-bottom:7px}.ctop{margin-bottom:1px}.cmeta{margin-top:3px;gap:4px}.cbadge{padding:2px 7px;font-size:9px}.ctitle{font-size:14px}.dash-big{font-size:28px}.coach-title{font-size:18px}.hdr{padding:10px var(--container-pad) 10px}.hdr-date{display:none}.hdr h1{font-size:19px;margin-bottom:7px}.stat{padding:5px 8px;border-radius:10px}.stat-n{font-size:14px}.stat-l{font-size:8px}.hdr-btn.theme-toggle{min-width:74px;padding:0 10px;font-size:11px}.xbtn,.chip-btn,.sbtn,.cbtn,.abtn{min-height:40px}#taskList .cacts .cact-row-desktop{display:none!important}#taskList .cacts .cact-row-mobile-overflow{display:inline-flex!important}}
 @media (max-width:390px){.dash-grid,.prod-kpis,.plan-grid,.more-grid,.cgrid,.cgrid3,.cgrid4{grid-template-columns:1fr}.task-filter-actions{display:grid;grid-template-columns:1fr 1fr}.task-filter-actions .chip-btn:last-child{grid-column:1/-1}}
 @media (max-width:640px){
 #taskList .card .crow{flex-wrap:nowrap;align-items:flex-start;gap:8px}
@@ -320,27 +322,7 @@ body{background:linear-gradient(180deg,var(--bg),var(--bg2));font-size:15px;line
 <script src="supabase-config.js"></script>
 <script src="auth-module.js"></script>
 <script src="sync-module.js"></script>
-<script src="js/constants.js"></script>
-<script src="js/utils.js"></script>
-<script src="js/habits-routines.js"></script>
-<script src="js/shifts.js"></script>
-<script src="js/time-templates.js"></script>
-<script src="js/calendar-stats.js"></script>
-<script src="js/actions.js"></script>
-<script src="js/features.js"></script>
-<script src="js/core.js"></script>
-<script src="js/views/nav.js"></script>
-<script src="js/views/dashboard.js"></script>
-<script src="js/views/tasks.js"></script>
-<script src="js/views/myday-habits.js"></script>
-<script src="js/views/settings-forms.js"></script>
-<script src="js/views/kids.js"></script>
-<script src="js/views/health-money.js"></script>
-<script src="js/views/bills.js"></script>
-<script src="js/views/shifts-timeline.js"></script>
-<script src="js/views/whatnow-dispatch.js"></script>
-<script src="js/init.js"></script>
-<script src="js/chat.js"></script>
+<script src="app.bundle.js"></script>
 <script src="todo-flow-production.js"></script>
 </body>
 </html>

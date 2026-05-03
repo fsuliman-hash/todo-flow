@@ -34,6 +34,7 @@ function loadDotEnv() {
 }
 
 loadDotEnv();
+try { require('./build.js'); } catch(e) { console.warn('[server] bundle generation skipped:', e.message); }
 
 const {
   handleChatPayload,
