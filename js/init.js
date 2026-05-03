@@ -1,3 +1,40 @@
+function initPullToRefresh(){
+  if(!('ontouchstart' in window))return;
+  var el=document.getElementById('ptr');
+  if(!el)return;
+  var label=el.querySelector('.ptr-label');
+  var icon=el.querySelector('.ptr-icon');
+  var startY=0,pulling=false,farEnough=false;
+  document.addEventListener('touchstart',function(e){
+    if(window.scrollY>4)return;
+    startY=e.touches[0].clientY;
+    pulling=true;farEnough=false;
+  },{passive:true});
+  document.addEventListener('touchmove',function(e){
+    if(!pulling)return;
+    var dy=e.touches[0].clientY-startY;
+    if(dy<16){el.classList.remove('ptr-visible');farEnough=false;return;}
+    el.classList.add('ptr-visible');
+    if(dy>80){farEnough=true;label.textContent='Release to refresh';icon.textContent='↑';}
+    else{farEnough=false;label.textContent='Pull to refresh';icon.textContent='↓';}
+  },{passive:true});
+  document.addEventListener('touchend',function(){
+    if(!pulling)return;
+    pulling=false;
+    if(farEnough){
+      label.textContent='Refreshing…';icon.textContent='⟳';
+      el.classList.add('ptr-refreshing');
+      setTimeout(function(){
+        try{load();render();}catch(err){console.warn('[ptr]',err);}
+        el.classList.remove('ptr-visible','ptr-refreshing');
+        label.textContent='Pull to refresh';icon.textContent='↓';
+      },500);
+    }else{
+      el.classList.remove('ptr-visible');
+    }
+  },{passive:true});
+}
+
 // INIT
 (function todoFlowBoot(){
   try{
@@ -5,6 +42,7 @@
     syncViewportMode();
     render();
     startNotificationLoop();
+    initPullToRefresh();
     setTimeout(checkBriefing,500);
     setInterval(checkDueNowBanner,15000);
     setTimeout(checkDueNowBanner,2000);
