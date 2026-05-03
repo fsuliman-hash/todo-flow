@@ -30,7 +30,7 @@ async function fetchParsedTasksFromServer(text){
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
       input:text,
-      anchorDate:fmtLD(new Date()),
+      anchorDate:fmtLD(new Date())+' ('+['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()]+')',
       anchorNowIso:new Date().toISOString(),
       timezone:tz||'UTC',
       userId:userId
@@ -84,15 +84,17 @@ function forceTaskDueToExplicitWeekday(task,inputText){
   if(targetDay<0)return task;
   const dueRaw=String(task?.due_at||'').trim();
   if(!dueRaw)return task;
-  const due=new Date(dueRaw);
-  if(Number.isNaN(due.getTime()))return task;
-  if(due.getDay()===targetDay)return task;
+  // Always compute target date client-side from today's local date.
+  // Never trust the model's weekday arithmetic — it can be off by 1 for future 2026 dates.
   const now=new Date();
+  const dueDate=new Date(dueRaw);
+  const h=Number.isNaN(dueDate.getTime())?9:dueDate.getHours();
+  const m=Number.isNaN(dueDate.getTime())?0:dueDate.getMinutes();
   const fixed=new Date(now);
-  fixed.setHours(due.getHours(),due.getMinutes(),0,0);
-  let shift=(targetDay-fixed.getDay()+7)%7;
-  if(shift===0&&fixed.getTime()<now.getTime())shift=7;
-  fixed.setDate(fixed.getDate()+shift);
+  fixed.setHours(h,m,0,0);
+  let shift=(targetDay-now.getDay()+7)%7;
+  if(shift===0)shift=7; // always land on the NEXT occurrence, never today
+  fixed.setDate(now.getDate()+shift);
   return {...task,due_at:fixed.toISOString()};
 }
 function addTaskFromParsedNlpTask(task){
