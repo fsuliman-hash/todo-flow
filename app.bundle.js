@@ -1510,7 +1510,7 @@ function navLibraryForChooser(){
   return APP_SHELL_MINIMAL?NAV_LIBRARY.filter(n=>PRIMARY_NAV_KEYS.includes(n.k)):NAV_LIBRARY.filter(n=>isViewEnabled(n.k));
 }
 let X={};
-let touchState={id:null,x:0,y:0,t:0,timer:null,menuOpened:false,cancelled:false};
+let touchState={id:null,startX:0,startY:0,curX:0,curY:0,t:0,timer:null,menuOpened:false,cancelled:false};
 let activeKidId="",lastCompletionState=null,prayerSyncing=false;
 let completionPendingTimers={};
 function defaultExtras(){
@@ -2281,11 +2281,11 @@ function rCards(list){
     </div>`;
   }).join('');
 }
-function resetTouchState(){if(touchState.timer)clearTimeout(touchState.timer);touchState={id:null,x:0,y:0,t:0,timer:null,menuOpened:false,cancelled:false};}
-function taskTouchStart(e,id){const t=e.changedTouches?.[0];if(!t)return;resetTouchState();touchState={id,x:t.clientX,y:t.clientY,t:Date.now(),timer:setTimeout(()=>{touchState.menuOpened=true;openTaskMenu(id)},520),menuOpened:false,cancelled:false};}
-function taskTouchMove(e,id){const t=e.changedTouches?.[0];if(!t||touchState.id!==id)return;const dx=t.clientX-touchState.x,dy=t.clientY-touchState.y;if(Math.abs(dx)>12||Math.abs(dy)>12){touchState.cancelled=true;if(touchState.timer){clearTimeout(touchState.timer);touchState.timer=null;}}}
+function resetTouchState(){if(touchState.timer)clearTimeout(touchState.timer);touchState={id:null,startX:0,startY:0,curX:0,curY:0,t:0,timer:null,menuOpened:false,cancelled:false};}
+function taskTouchStart(e,id){const t=e.touches?.[0]||e.changedTouches?.[0];if(!t)return;resetTouchState();touchState={id,startX:t.clientX,startY:t.clientY,curX:t.clientX,curY:t.clientY,t:Date.now(),timer:setTimeout(()=>{touchState.menuOpened=true;openTaskMenu(id)},520),menuOpened:false,cancelled:false};}
+function taskTouchMove(e,id){const t=e.touches?.[0]||e.changedTouches?.[0];if(!t||touchState.id!==id)return;touchState.curX=t.clientX;touchState.curY=t.clientY;const dx=t.clientX-touchState.startX,dy=t.clientY-touchState.startY;if(Math.abs(dx)>12||Math.abs(dy)>12){touchState.cancelled=true;if(touchState.timer){clearTimeout(touchState.timer);touchState.timer=null;}}}
 function taskTouchCancel(e,id){if(touchState.id===id)resetTouchState();}
-function taskTouchEnd(e,id){const t=e.changedTouches?.[0];if(!t)return;const dx=t.clientX-touchState.x,dy=t.clientY-touchState.y;const menuOpened=touchState.menuOpened;const cancelled=touchState.cancelled;if(touchState.timer)clearTimeout(touchState.timer);resetTouchState();if(menuOpened)return;if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)){if(dx<0)toggleComp(id);else openSnooze(id);return;}if(cancelled)return;}
+function taskTouchEnd(e,id){const dx=touchState.curX-touchState.startX,dy=touchState.curY-touchState.startY;const menuOpened=touchState.menuOpened;if(touchState.timer)clearTimeout(touchState.timer);resetTouchState();if(menuOpened)return;if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)*1.2){if(dx<0)toggleComp(id);else openSnooze(id);return;}}
 function openTaskCardQuickActions(id){
   const r=R.find(x=>x.id===id);if(!r)return;
   const ov=document.createElement('div');ov.className='mo';ov.id='taskQuickActM';ov.onclick=e=>{if(e.target===ov)ov.remove()};

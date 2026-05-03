@@ -35,7 +35,7 @@ function navLibraryForChooser(){
   return APP_SHELL_MINIMAL?NAV_LIBRARY.filter(n=>PRIMARY_NAV_KEYS.includes(n.k)):NAV_LIBRARY.filter(n=>isViewEnabled(n.k));
 }
 let X={};
-let touchState={id:null,x:0,y:0,t:0,timer:null,menuOpened:false,cancelled:false};
+let touchState={id:null,startX:0,startY:0,curX:0,curY:0,t:0,timer:null,menuOpened:false,cancelled:false};
 let activeKidId="",lastCompletionState=null,prayerSyncing=false;
 let completionPendingTimers={};
 function defaultExtras(){
