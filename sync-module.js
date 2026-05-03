@@ -212,6 +212,14 @@ class SyncManager {
         }
       }
 
+      // Remove local tasks that no longer exist in cloud (deleted from another device).
+      // Only when upload succeeded — guarantees all local tasks were pushed first, so
+      // any local task absent from cloud was genuinely deleted elsewhere.
+      if (afterSuccessfulUpload) {
+        const cloudIdSet = new Set(cloudTasks.map((t) => t && t.id).filter(Boolean));
+        R = R.filter((t) => !t || !t.id || cloudIdSet.has(t.id));
+      }
+
       // Pull shift snapshot from user_sync and merge by id.
       if (supabase.getLastSync && typeof shifts !== 'undefined' && Array.isArray(shifts)) {
         const last = await supabase.getLastSync();
@@ -249,6 +257,7 @@ class SyncManager {
       }
 
       if (typeof sv === 'function') sv(false);
+      if (typeof render === 'function') render();
       this.lastSync = Date.now();
       localStorage.setItem('sync_last', this.lastSync.toString());
       this._registerSyncSuccess();
