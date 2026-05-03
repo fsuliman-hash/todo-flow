@@ -42,6 +42,7 @@ const {
   handleChatCategorizePayload,
   handleChatShiftPayload,
   handleChatShiftIntentPayload,
+  handleParseTasksPayload,
 } = require('./lib/chat-handler');
 
 const HOST = process.env.HOST || '127.0.0.1';
@@ -67,10 +68,36 @@ const MIME_TYPES = {
   '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Referrer-Policy': 'same-origin',
+};
+
 function sendJson(res, status, body) {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', ...SECURITY_HEADERS });
   res.end(JSON.stringify(body));
 }
+
+// Simple in-memory rate limiter: max requests per window per IP.
+const rateLimitStore = new Map();
+function checkRateLimit(ip, limit = 30, windowMs = 60_000) {
+  const now = Date.now();
+  let entry = rateLimitStore.get(ip);
+  if (!entry || now > entry.resetAt) {
+    entry = { count: 0, resetAt: now + windowMs };
+    rateLimitStore.set(ip, entry);
+  }
+  entry.count++;
+  return entry.count > limit;
+}
+// Prune stale entries every 5 minutes to avoid unbounded memory growth.
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitStore) {
+    if (now > entry.resetAt) rateLimitStore.delete(ip);
+  }
+}, 300_000);
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -97,6 +124,7 @@ function serveRuntimeConfig(res) {
   res.writeHead(200, {
     'Content-Type': 'application/javascript; charset=utf-8',
     'Cache-Control': 'no-store',
+    ...SECURITY_HEADERS,
   });
   res.end(body);
 }
@@ -151,13 +179,22 @@ function serveStatic(req, res) {
     }
     const ext = path.extname(resolved.filePath).toLowerCase();
     const mime = MIME_TYPES[ext] || 'application/octet-stream';
-    res.writeHead(200, { 'Content-Type': mime });
+    res.writeHead(200, { 'Content-Type': mime, ...SECURITY_HEADERS });
     res.end(content);
   });
 }
 
+const AI_ROUTES = new Set(['/api/chat', '/api/chat-action', '/api/chat-edit', '/api/chat-categorize', '/api/chat-shift', '/api/chat-shift-intent', '/api/parse-tasks']);
+
 const server = http.createServer(async (req, res) => {
   const pathname = req.url.split('?')[0];
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+
+  if (req.method === 'POST' && AI_ROUTES.has(pathname)) {
+    if (checkRateLimit(ip)) {
+      return sendJson(res, 429, { error: 'Too many requests. Please slow down.' });
+    }
+  }
 
   if (req.method === 'POST' && pathname === '/api/chat') {
     let parsed = {};
@@ -249,6 +286,22 @@ const server = http.createServer(async (req, res) => {
     }
     try {
       const out = await handleChatShiftIntentPayload(parsed, env);
+      return sendJson(res, out.status, out.json);
+    } catch (err) {
+      return sendJson(res, 500, { error: err.message || 'Server error.' });
+    }
+  }
+
+  if (req.method === 'POST' && pathname === '/api/parse-tasks') {
+    let parsed = {};
+    try {
+      const raw = await readBody(req);
+      parsed = raw ? JSON.parse(raw) : {};
+    } catch {
+      return sendJson(res, 400, { error: 'Invalid JSON body.' });
+    }
+    try {
+      const out = await handleParseTasksPayload(parsed, env);
       return sendJson(res, out.status, out.json);
     } catch (err) {
       return sendJson(res, 500, { error: err.message || 'Server error.' });

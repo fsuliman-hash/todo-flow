@@ -1,0 +1,72 @@
+function rKids(){
+  let h=rHdr('Kids & Family','Profiles, homework, reading, appointments, chores');
+  h+=`<div class="kid-tabs">${X.children.map(c=>`<button class="kid-tab${activeKidId===c.id?' active':''}" style="border-color:${activeKidId===c.id?c.color:'var(--border)'};color:${activeKidId===c.id?c.color:'var(--text2)'}" onclick="activeKidId='${c.id}';render()">${esc(c.icon)} ${esc(c.name)} · ⭐${c.points}</button>`).join('')}<button class="kid-tab" onclick="addChildProfile()">＋ Child</button></div>`;
+  if(!X.children.length){h+=`<div class="empty"><div class="empty-i">👨‍👩‍👧</div><div class="empty-t">Add a child profile to start</div></div>`;return h;}
+  const kid=X.children.find(c=>c.id===activeKidId)||X.children[0];activeKidId=kid.id;
+  const reading=X.readingLogs.filter(x=>x.childId===kid.id).slice().reverse();
+  const homework=X.homework.filter(x=>x.childId===kid.id).slice().reverse();
+  const apps=X.kidAppointments.filter(x=>x.childId===kid.id).slice().reverse();
+  const chores=(X.chores||[]).slice(0,8);
+  const stats=getHomeworkStats(kid.id);
+  const choreHistory=(X.choreHistory||[]).filter(c=>c.childId===kid.id).slice().reverse().slice(0,5);
+  h+=`<div class="panel"><h3>Rewards</h3><div class="dash-big" style="font-size:34px;color:${kid.color}">${kid.points} ⭐</div><div class="safe-row"><button class="xbtn" onclick="adjustChildPoints('${kid.id}',1)">+1 Star</button><button class="xbtn" onclick="adjustChildPoints('${kid.id}',5)">+5 Stars</button><button class="xbtn" onclick="adjustChildPoints('${kid.id}',-1)">−1</button><button class="xbtn" onclick="redeemStars('${kid.id}')">Redeem</button><button class="xbtn" onclick="openChildProfileForm('${kid.id}')">✏️ Child</button><button class="xbtn" onclick="deleteChildProfile('${kid.id}')">🗑 Child</button></div>${(X.rewards||[]).filter(r=>r.childId===kid.id).slice().reverse().slice(0,4).map(r=>`<div class="mini-item">🎁 ${esc(r.title)} · ${r.cost}⭐</div>`).join('')||'<div class="sdesc" style="margin-top:8px">No redeemed rewards yet.</div>'}</div>`;
+  h+=`<div class="panel"><h3>School tracker</h3><div class="safe-row"><button class="xbtn" onclick="addHomework('${kid.id}')">+ Assignment</button><button class="xbtn" onclick="addKidCategory('${kid.id}')">+ Category</button></div><div style="display:flex;flex-wrap:wrap;gap:4px;margin:8px 0">${getKidCategories(kid.id).map(s=>`<span class="ctag" style="cursor:pointer" onclick="deleteKidCategory('${kid.id}','${esc(s)}')">${esc(s)} ✕</span>`).join('')}</div><div class="mini-list"><div class="mini-item">Assignments: ${stats.totalCount}</div><div class="mini-item">Average grade: ${stats.gradedCount?stats.avg.toFixed(1):'—'}</div></div>${stats.subjects.map(s=>`<div class="list-row"><div class="list-main"><b>${esc(s.subject)}</b><span>${s.done}/${s.total} done${s.graded?` · avg ${(s.gradeSum/s.graded).toFixed(1)}`:''}</span></div></div>`).join('')||'<div class="sdesc">No school entries yet.</div>'}${homework.slice(0,8).map(r=>`<div class="list-row"><div class="list-main"><b>${esc(r.title)}</b><span>${esc(r.subject)}${r.grade?` · Grade ${esc(r.grade)}`:''} · ${new Date(r.date).toLocaleDateString()}</span></div><div style="display:flex;gap:6px"><button class="cact" onclick="toggleHomework('${r.id}')">${r.done?'✅':'⬜'}</button><button class="cact" onclick="editHomework('${r.id}')">✏️</button><button class="cact" onclick="deleteHomework('${r.id}')">🗑</button></div></div>`).join('')}</div>`;
+  h+=`<div class="panel"><h3>Reading log · Barton / minutes</h3><div class="safe-row"><button class="xbtn" onclick="addReadingLog('${kid.id}')">+ Reading</button></div><div class="mini-item">Total minutes logged: ${reading.reduce((a,r)=>a+(Number(r.minutes)||0),0)}</div>${reading.slice(0,6).map(r=>`<div class="list-row"><div class="list-main"><b>${r.minutes} min${r.lesson?` · ${esc(r.lesson)}`:''}</b><span>${new Date(r.date).toLocaleDateString()}${r.notes?` · ${esc(r.notes)}`:''}</span></div><div style="display:flex;gap:6px"><button class="cact" onclick="editReadingLog('${r.id}')">✏️</button><button class="cact" onclick="deleteReadingLog('${r.id}')">🗑</button></div></div>`).join('')||'<div class="sdesc">No reading logged yet.</div>'}</div>`;
+  h+=`<div class="panel"><h3>Appointments history</h3><div class="safe-row"><button class="xbtn" onclick="addKidAppointment('${kid.id}')">+ Appointment</button></div>${apps.slice(0,8).map(r=>`<div class="list-row"><div class="list-main"><b>${esc(r.title)}</b><span>${new Date(r.date).toLocaleString()}${r.notes?` · ${esc(r.notes)}`:''}</span></div><div style="display:flex;gap:6px"><button class="cact" onclick="editKidAppointment('${r.id}')">✏️</button><button class="cact" onclick="deleteKidAppointment('${r.id}')">🗑</button></div></div>`).join('')||'<div class="sdesc">No appointments yet.</div>'}</div>`;
+  h+=`<div class="panel"><h3>Chore rotation scheduler</h3><div class="safe-row"><button class="xbtn" onclick="addChore()">+ Chore</button><button class="xbtn" onclick="openWeeklyChoreRotation()">🔄 This week</button></div>${chores.map(ch=>{const asn=getChoreAssignee(ch);return `<div class="list-row"><div class="list-main"><b>${esc(ch.title)}</b><span>${asn?`${esc(asn.icon)} ${esc(asn.name)}`:'No child'} · ${ch.points}⭐${ch.lastDone?` · last done ${esc(ch.lastDone)}`:''}</span></div><div style="display:flex;gap:6px"><button class="cact" onclick="openChoreForm('${ch.id}')">✏️</button><button class="cact" onclick="deleteChore('${ch.id}')">🗑</button><button class="cact" onclick="completeChore('${ch.id}')">✅</button></div></div>`}).join('')||'<div class="sdesc">No chores set yet.</div>'}${choreHistory.length?`<div class="mini-list" style="margin-top:10px">${choreHistory.map(c=>`<div class="mini-item">${new Date(c.date).toLocaleDateString()} · ${esc(c.title)} · +${c.points}⭐</div>`).join('')}</div>`:''}</div>`;
+  h+=`<div class="panel"><h3>Shared family checklist</h3><div class="safe-row"><button class="xbtn" onclick="openChecklistShare()">🔗 Share link</button><button class="xbtn" onclick="openChecklistShare()">▣ QR code</button></div><div class="sdesc">Share the current shopping and chore checklist with your wife's phone.</div>${(X.sharedLinks||[]).slice(0,3).map(l=>`<div class="list-row"><div class="list-main"><b>${esc(l.label)}</b><span>${new Date(l.createdAt).toLocaleString()}</span></div><button class="cact" onclick="copyShareUrl('Family checklist','${l.url}')">📋</button></div>`).join('')||''}</div>`;
+  return h;
+}
+function openKidQuickAdd(){if(view!=='kids'){openAdd();return;}const ov=document.createElement('div');ov.className='mo';ov.onclick=e=>{if(e.target===ov)ov.remove()};ov.innerHTML=`<div class="mo-in" onclick="event.stopPropagation()"><div class="mo-h"></div><h3>Kids quick add</h3><div class="snz-opt" onclick="addChildProfile();this.closest('.mo').remove()">👶 Add child profile</div><div class="snz-opt" onclick="addReadingLog('${activeKidId}');this.closest('.mo').remove()">📚 Add reading log</div><div class="snz-opt" onclick="addHomework('${activeKidId}');this.closest('.mo').remove()">📝 Add homework</div><div class="snz-opt" onclick="addKidAppointment('${activeKidId}');this.closest('.mo').remove()">📅 Add appointment</div></div>`;document.body.appendChild(ov)}
+function openChildProfileForm(id=''){
+  const child=id?X.children.find(x=>x.id===id):null;
+  const icon=child?.icon||CHILD_ICON_OPTIONS[0];
+  const color=child?.color||PROFILE_COLOR_OPTIONS[X.children.length%PROFILE_COLOR_OPTIONS.length];
+  window.__childIcon=icon;
+  window.__childColor=color;
+  window.__editingChildId=child?.id||'';
+  const ov=document.createElement('div');
+  ov.className='mo';
+  ov.id='childProfileM';
+  ov.onclick=e=>{if(e.target===ov)closeChildProfileModal()};
+  ov.innerHTML=`<div class="mo-in" onclick="event.stopPropagation()"><div class="mo-h"></div><h3>${child?'Edit child profile':'Add child profile'}</h3><div class="flbl">Child name</div><input class="finp" id="childName" value="${esc(child?.name||'')}" placeholder="Enter child name"><div class="frow"><div><div class="flbl">Starting stars</div><input class="finp" id="childPoints" type="number" min="0" step="1" value="${Math.max(0,Number(child?.points)||0)}"></div><div><div class="flbl">Quick adjust</div><div class="safe-row"><button type="button" class="xbtn" onclick="adjustChildProfilePoints(-1)">−1</button><button type="button" class="xbtn" onclick="adjustChildProfilePoints(1)">+1</button><button type="button" class="xbtn" onclick="adjustChildProfilePoints(5)">+5</button></div></div></div><div class="flbl">Choose an icon</div><div class="emoji-grid">${CHILD_ICON_OPTIONS.map(em=>`<button type="button" class="emoji-btn${em===icon?' active':''}" data-icon="${em}" onclick="selectChildIcon('${em}')">${em}</button>`).join('')}</div><div class="flbl">Choose a color</div><div class="color-grid">${PROFILE_COLOR_OPTIONS.map(c=>`<button type="button" class="color-btn${c===color?' active':''}" data-color="${c}" style="background:${c}" onclick="selectChildColor('${c}')"></button>`).join('')}</div><div class="flbl">Custom color</div><input class="finp" id="childCustomColor" type="color" value="${color}" onchange="selectChildColor(this.value)"><div class="safe-row" style="margin-top:14px"><button class="xbtn" onclick="closeChildProfileModal()">Close</button><button class="sbtn" onclick="saveChildProfileModal()">Save</button></div></div>`;
+  document.body.appendChild(ov);
+  setTimeout(()=>document.getElementById('childName')?.focus(),60);
+}
+function addChildProfile(){openChildProfileForm()}
+function deleteChildProfile(id){const idx=X.children.findIndex(x=>x.id===id);if(idx<0)return;const child=X.children[idx];X.children.splice(idx,1);X.readingLogs=X.readingLogs.filter(x=>x.childId!==id);X.homework=X.homework.filter(x=>x.childId!==id);X.kidAppointments=X.kidAppointments.filter(x=>x.childId!==id);X.rewards=X.rewards.filter(x=>x.childId!==id);R.forEach(r=>{if(r.childId===id)r.childId=''});if(activeKidId===id)activeKidId=X.children[0]?.id||'';logAction('child',`Deleted child profile ${child.name}`);sv();render();showToast('Child profile removed')}
+function openRewardRedeemForm(childId){const kid=X.children.find(c=>c.id===childId);if(!kid)return;openRecordModal({title:`Redeem stars · ${kid.name}`,fields:[{name:'title',label:'Reward title',value:'Screen time',required:true},{name:'cost',label:'Stars to redeem',type:'number',value:'5'}],onSubmit:(vals)=>{const cost=Math.max(1,Number(vals.cost)||0);if(!cost||cost>kid.points){showToast('Not enough stars');return false;}kid.points-=cost;X.rewards.unshift({id:gid(),childId,title:vals.title.trim()||'Reward',cost,date:new Date().toISOString()});logAction('reward',`${kid.name} redeemed ${cost}⭐ for ${vals.title.trim()||'Reward'}`);sv();render();showToast(`Redeemed ${cost} stars`);return true;}})}
+function addReadingLog(childId){if(!childId)return;const item={childId,id:'',minutes:15,lesson:'',notes:''};openRecordModal({title:'Add reading log',fields:[{name:'minutes',label:'Minutes read',type:'number',value:'15'},{name:'lesson',label:'Lesson / Barton level',value:''},{name:'notes',label:'Notes',type:'textarea',value:''}],onSubmit:(vals)=>{X.readingLogs.unshift({id:gid(),childId,date:new Date().toISOString(),minutes:Number(vals.minutes)||0,lesson:(vals.lesson||'').trim(),notes:(vals.notes||'').trim()});logAction('reading',`Reading logged for ${getChildName(childId)}`);sv();render();return true;}})
+}
+function openHomeworkForm(childId,id=''){
+  if(!childId)return;const hw=id?X.homework.find(x=>x.id===id):null;
+  openRecordModal({title:hw?'Edit assignment':'Add assignment',fields:[{name:'title',label:'Assignment title',value:hw?.title||'',required:true},{name:'subject',label:'Category',type:'select',options:getKidCategories(childId).map(s=>({value:s,label:s})),value:hw?.subject||'General'},{name:'grade',label:'Grade / score',value:hw?.grade||''}],onSubmit:(vals)=>{const title=vals.title.trim();if(!title)return false;const rec=hw||{id:gid(),childId,date:new Date().toISOString(),done:false};Object.assign(rec,{title,subject:(vals.subject||'General').trim()||'General',grade:(vals.grade||'').trim()});if(!hw)X.homework.unshift(rec);sv();render();return true;}})
+}
+function addHomework(childId){openHomeworkForm(childId)}
+function getKidCategories(childId){
+  const kid=X.children.find(c=>c.id===childId);
+  if(kid&&Array.isArray(kid.categories)&&kid.categories.length)return kid.categories;
+  return X.kidSubjects||[];
+}
+function addKidCategory(childId){
+  const kid=X.children.find(c=>c.id===childId);if(!kid)return;
+  const name=prompt('New category for '+kid.name+':');if(!name||!name.trim())return;
+  const s=name.trim();
+  if(!Array.isArray(kid.categories))kid.categories=[...(X.kidSubjects||[])];
+  if(kid.categories.some(x=>x.toLowerCase()===s.toLowerCase())){showToast('Category already exists');return}
+  kid.categories.push(s);sv();render();showToast('Category added for '+kid.name);
+}
+function deleteKidCategory(childId,name){
+  const kid=X.children.find(c=>c.id===childId);if(!kid)return;
+  if(!confirm('Remove category "'+name+'" for '+kid.name+'?'))return;
+  if(!Array.isArray(kid.categories))kid.categories=[...(X.kidSubjects||[])];
+  kid.categories=kid.categories.filter(s=>s!==name);sv();render();showToast('Category removed');
+}
+function toggleHomework(id){const h=X.homework.find(x=>x.id===id);if(!h)return;h.done=!h.done;if(h.done){const kid=X.children.find(c=>c.id===h.childId);if(kid)kid.points+=1;logAction('homework',`Completed ${h.title}`);}sv();render()}
+function openKidAppointmentForm(childId,id=''){
+  if(!childId)return;const item=id?X.kidAppointments.find(x=>x.id===id):null;
+  openRecordModal({title:item?'Edit appointment':'Add appointment',fields:[{name:'title',label:'Appointment title',value:item?.title||'',required:true},{name:'when',label:'Date / time',type:'datetime-local',value:item?`${fmtLD(new Date(item.date))}T${fmtLT(new Date(item.date))}`:`${fmtLD(new Date())}T12:00`},{name:'notes',label:'Notes',type:'textarea',value:item?.notes||''}],onSubmit:(vals)=>{const title=vals.title.trim();if(!title||!vals.when)return false;const rec=item||{id:gid(),childId};Object.assign(rec,{title,date:new Date(vals.when).toISOString(),notes:(vals.notes||'').trim()});if(!item)X.kidAppointments.unshift(rec);sv();render();return true;}})
+}
+function addKidAppointment(childId){openKidAppointmentForm(childId)}
+function redeemStars(childId){openRewardRedeemForm(childId)}
+function getChildName(id){return X.children.find(c=>c.id===id)?.name||'Child'}
