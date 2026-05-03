@@ -2285,7 +2285,7 @@ function resetTouchState(){if(touchState.timer)clearTimeout(touchState.timer);to
 function taskTouchStart(e,id){const t=e.changedTouches?.[0];if(!t)return;resetTouchState();touchState={id,x:t.clientX,y:t.clientY,t:Date.now(),timer:setTimeout(()=>{touchState.menuOpened=true;openTaskMenu(id)},520),menuOpened:false,cancelled:false};}
 function taskTouchMove(e,id){const t=e.changedTouches?.[0];if(!t||touchState.id!==id)return;const dx=t.clientX-touchState.x,dy=t.clientY-touchState.y;if(Math.abs(dx)>12||Math.abs(dy)>12){touchState.cancelled=true;if(touchState.timer){clearTimeout(touchState.timer);touchState.timer=null;}}}
 function taskTouchCancel(e,id){if(touchState.id===id)resetTouchState();}
-function taskTouchEnd(e,id){const t=e.changedTouches?.[0];if(!t)return;const dx=t.clientX-touchState.x,dy=t.clientY-touchState.y;const menuOpened=touchState.menuOpened;const cancelled=touchState.cancelled;if(touchState.timer)clearTimeout(touchState.timer);resetTouchState();if(menuOpened||cancelled)return;if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)){if(dx<0)toggleComp(id);else openSnooze(id);}}
+function taskTouchEnd(e,id){const t=e.changedTouches?.[0];if(!t)return;const dx=t.clientX-touchState.x,dy=t.clientY-touchState.y;const menuOpened=touchState.menuOpened;const cancelled=touchState.cancelled;if(touchState.timer)clearTimeout(touchState.timer);resetTouchState();if(menuOpened)return;if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)){if(dx<0)toggleComp(id);else openSnooze(id);return;}if(cancelled)return;}
 function openTaskCardQuickActions(id){
   const r=R.find(x=>x.id===id);if(!r)return;
   const ov=document.createElement('div');ov.className='mo';ov.id='taskQuickActM';ov.onclick=e=>{if(e.target===ov)ov.remove()};
