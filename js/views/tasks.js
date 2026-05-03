@@ -231,10 +231,10 @@ function rCards(list){
     const u=urg(r.dueDate),cat=getCategory(r.category),pri=PRIS.find(p=>p.key===r.priority)||PRIS[0];
     const stD=(r.subtasks||[]).filter(s=>s.done).length,stT=(r.subtasks||[]).length;const blocked=!!(r.dependsOn&&R.find(x=>x.id===r.dependsOn && !x.completed));
     const kid=r.childId?X.children.find(c=>c.id===r.childId):null;
-    const overdueBadge=u==='overdue'&&!r.completed?'<span class="cbdg bdg-overdue-label">Overdue</span>':'';
+    const isOverdue=u==='overdue'&&!r.completed;
     const dueHuman=fmtTaskDueHuman(r.dueDate);
-    const dueLineCls='cdate-line'+(dueHuman==='No date'?' cdate-muted':'');
-    return`<div class="card pri-${r.priority||'low'}${r.completed?' completed':''}${tasksBatchMode&&view==='tasks'&&tasksBatchSelected.has(r.id)?' task-card-batch-selected':''}" data-task-id="${r.id}" draggable="${tasksBatchMode&&view==='tasks'?'false':'true'}" ondragstart="dragS(event,'${r.id}')" ondragover="dragO(event)" ondragleave="this.classList.remove('drag-over')" ondrop="dragD(event,'${r.id}')" ontouchstart="taskTouchStart(event,'${r.id}')" ontouchmove="taskTouchMove(event,'${r.id}')" ontouchend="taskTouchEnd(event,'${r.id}')" ontouchcancel="taskTouchCancel(event,'${r.id}')" oncontextmenu="event.preventDefault();openTaskMenu('${r.id}')">
+    const dueLineCls='cdate-line'+(isOverdue?' cdate-overdue':dueHuman==='No date'?' cdate-muted':'');
+    return`<div class="card pri-${r.priority||'low'}${r.completed?' completed':''}${isOverdue?' card-overdue':''}${tasksBatchMode&&view==='tasks'&&tasksBatchSelected.has(r.id)?' task-card-batch-selected':''}" data-task-id="${r.id}" draggable="${tasksBatchMode&&view==='tasks'?'false':'true'}" ondragstart="dragS(event,'${r.id}')" ondragover="dragO(event)" ondragleave="this.classList.remove('drag-over')" ondrop="dragD(event,'${r.id}')" ontouchstart="taskTouchStart(event,'${r.id}')" ontouchmove="taskTouchMove(event,'${r.id}')" ontouchend="taskTouchEnd(event,'${r.id}')" ontouchcancel="taskTouchCancel(event,'${r.id}')" oncontextmenu="event.preventDefault();openTaskMenu('${r.id}')">
       <div class="crow">
         ${tasksBatchMode&&view==='tasks'?`<label class="task-batch-pick" onclick="event.stopPropagation()"><input type="checkbox" aria-label="Select task" ${tasksBatchSelected.has(r.id)?'checked':''} onchange="toggleTasksBatch('${r.id}',this.checked)"></label>`:''}<span class="drag-handle">⠿</span>
         <button class="chk${r.completed?' on':''}" onclick="${blocked?"alert('Complete the dependency first!')":"toggleComp('"+r.id+"')"}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></button>
@@ -248,7 +248,7 @@ function rCards(list){
           ${r.billable?`<div class="ctime">💰 Billable</div>`:''}
           ${r.effort?`<div class="ctime">⏱️ ${esc(EFFORTS.find(e=>e.key===r.effort)?.label||r.effort)}</div>`:''}
           ${stT?`<div class="csubs">${(r.subtasks||[]).map((s,i)=>`<div class="csub${s.done?' dn':''}"><button class="csubchk${s.done?' on':''}" onclick="toggleSub('${r.id}',${i})">${s.done?'✓':''}</button><span>${esc(s.text)}</span></div>`).join('')}<div style="font-size:9px;color:var(--text3)">${stD}/${stT}</div></div>`:''}
-          <div class="cmeta">${overdueBadge}<span class="${dueLineCls}">${dueHuman}</span>${r.startDate?`<span class="cdate">Start ${fmtD(r.startDate)}</span>`:''}${r.recurrence&&r.recurrence!=='none'?`<span class="crec">🔁 ${esc(r.recurrence)}</span>`:''}${u==='overdue'&&!r.completed?`<button class="csnz" onclick="openSnooze('${r.id}')">💤 Snooze</button>`:''}</div>
+          <div class="cmeta"><span class="${dueLineCls}">${dueHuman}</span>${r.startDate?`<span class="cdate">Start ${fmtD(r.startDate)}</span>`:''}${r.recurrence&&r.recurrence!=='none'?`<span class="crec">🔁 ${esc(r.recurrence)}</span>`:''}${u==='overdue'&&!r.completed?`<button class="csnz" onclick="openSnooze('${r.id}')">💤 Snooze</button>`:''}</div>
         </div>
         <div class="cacts"><button type="button" class="cact cact-row-desktop" onclick="event.stopPropagation();openEdit('${r.id}')" aria-label="Edit">✏️</button><button type="button" class="cact cact-row-desktop" onclick="event.stopPropagation();delR('${r.id}')" aria-label="Delete">🗑</button><button type="button" class="cact cact-row-mobile-overflow" onclick="event.stopPropagation();openTaskCardQuickActions('${r.id}')" aria-haspopup="dialog" aria-label="More">⋯</button></div>
       </div>
