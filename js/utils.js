@@ -56,7 +56,7 @@ function fmtTaskDueHuman(iso){
   if(dayDiff<0){
     const n=Math.abs(dayDiff);
     const ago=n===1?'yesterday':`${n} days ago`;
-    return`Overdue · ${ago}, ${tm}`;
+    return`${ago}, ${tm}`;
   }
   if(dayDiff===0)return`Today, ${tm}`;
   if(dayDiff===1)return`Tomorrow, ${tm}`;
