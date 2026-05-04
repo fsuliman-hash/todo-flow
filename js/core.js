@@ -13,7 +13,7 @@ const NAV_LIBRARY=[
 ];
 
 /** Layer 1: Primary bottom nav = Tasks + Home + My Day + Calendar only; More + go() respect layer 2. */
-const APP_SHELL_MINIMAL=true;
+const APP_SHELL_MINIMAL=false;
 /** Layer 2: When APP_SHELL_MINIMAL, only keys set true appear in More (besides the four primary). When false, missing keys default open. */
 const FEATURE_VIEW={
   tasks:true,dashboard:true,myday:true,calendar:true,
