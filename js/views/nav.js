@@ -37,14 +37,14 @@ function openMore(){
     {title:'Life modules',items:[
             {k:"money",i:"💰",l:"Budget & Money",d:'Bills, pay, income, and contributions'},
       {k:"bills",i:"💳",l:"Bill Forecast",d:'Upcoming bills and paid history'},
-      {k:"prayers",i:"🕌",l:"Prayer Times",d:'Ottawa prayer schedule and sync'},
+      {k:"prayers",i:"🕌",l:"Prayer Times",d:'Daily prayer times and reminders'},
       {k:"kids",i:"👨‍👩‍👧",l:"Kids & School",d:'Profiles, homework, rewards, appointments'},
       {k:"health",i:"🩺",l:"Health",d:'Medication, sleep, and exercise'},
       {k:"shifts",i:"🏗️",l:"Shift Planner",d:'Work shifts, patterns, and pay periods'},
       {k:"time",i:"⏱️",l:"Time Tracking",d:'Client time and invoices'}
     ]},
     {title:'Tools',items:[
-      {k:"dispatch",i:"📞",l:"Dispatch",d:'FlowLine calls and follow-up'},
+      {k:"dispatch",i:"📞",l:"Dispatch",d:'Client calls and follow-up log'},
       {k:"templates",i:"📋",l:"Templates",d:'Reusable reminder sets'},
       {k:"stats",i:"📊",l:"Stats",d:'Trends and totals'},
       {k:"settings",i:"⚙️",l:"Settings",d:'Theme, categories, backup, and import/export'},
@@ -52,6 +52,6 @@ function openMore(){
     ]}
   ].map(g=>({...g,items:g.items.filter(t=>isViewEnabled(t.k)&&(APP_SHELL_MINIMAL?!PRIMARY_NAV_KEYS.includes(t.k):true))})).filter(g=>g.items.length);
   const ov=document.createElement('div');ov.className='mo';ov.id='moreM';ov.onclick=e=>{if(e.target===ov)ov.remove()};
-  ov.innerHTML=`<div class="mo-in" onclick="event.stopPropagation()"><div class="mo-h"></div><h3>Browse modules</h3><div class="sdesc" style="margin-bottom:12px">${groups.length?'Everything is grouped so it feels more like an app drawer than a long luggage list.':'More modules are hidden in this build. Use Settings from the gear if available.'}</div>${groups.map(g=>`<div class="more-group"><div class="flbl" style="margin-bottom:8px">${g.title}</div><div class="more-grid">${g.items.map(t=>`<button class="more-card" onclick="go('${t.k}');document.getElementById('moreM').remove()"><div class="more-card-top"><span class="more-emoji">${t.i}</span><b>${t.l}</b></div><span>${t.d}</span></button>`).join('')}</div></div>`).join('')}</div>`;
+  ov.innerHTML=`<div class="mo-in" onclick="event.stopPropagation()"><div class="mo-h"></div><h3>All modules</h3>${groups.length?'':` <div class="sdesc" style="margin-bottom:12px">More modules are hidden in this build. Use Settings if available.</div>`}${groups.map(g=>`<div class="more-group" style="margin-bottom:16px"><div class="flbl" style="margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.6">${g.title}</div><div class="more-grid">${g.items.map(t=>`<button class="more-card" onclick="go('${t.k}');document.getElementById('moreM').remove()"><div class="more-card-top"><span class="more-emoji">${t.i}</span><b>${t.l}</b></div><span>${t.d}</span></button>`).join('')}</div></div>`).join('')}</div>`;
   document.body.appendChild(ov);
 }
